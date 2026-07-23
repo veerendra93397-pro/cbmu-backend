@@ -39,6 +39,23 @@ class ChatRequest(BaseModel):
 
 FEE_PAGE_URL = "https://mangaloreuniversity.ac.in/fee-details-1.html"
 
+# Real coordinate for the Mangalore University campus as a whole (Konaje),
+# sourced from the university's Wikipedia infobox. This is NOT a per-building
+# pin — it's the general campus location. Use it as a fallback so navigation
+# links point somewhere real, but label it clearly as approximate whenever
+# a more specific building pin isn't available.
+CAMPUS_CENTER_LAT = 12.8157556
+CAMPUS_CENTER_LNG = 74.9240750
+CAMPUS_CENTER_SOURCE = "https://en.wikipedia.org/wiki/Mangalore_University"
+
+def get_maps_url(lat, lng):
+    return f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
+
+def location_marker(lat, lng):
+    # Matches the __LOCATION__:lat,lng pattern the Flutter app's regex looks
+    # for — this is what actually drives the "Open in Google Maps" button.
+    return f"__LOCATION__:{lat},{lng}"
+
 COURSE_FEES = {
     "mca": {
         "label": "MCA (Master of Computer Applications)",
@@ -141,9 +158,13 @@ CAMPUS_DATA = {
         "aliases": ["mba", "management", "business school", "business administration"],
         # The site has two different pages both claiming to be the current
         # chairperson (chairperson-10.html -> Dr. Sheker Naik vs.
-        # chairperson-8.html -> Dr. Preethi Keerthi D'Souza). Don't assert
-        # either without a phone confirmation.
-        "chairperson": "Unconfirmed — two official pages disagree, call 0824-2287209 to verify",
+        # chairperson-8.html -> Dr. Preethi Keerthi D'Souza). The 2022 MU
+        # Diary adds a third data point: Prof. Puttanna K as chair back then,
+        # with Dr. Sheker Naik as coordinator of the MBA (Tourism & Travel
+        # Management) specialization specifically — so this may be a genuine
+        # progression (Puttanna K -> Sheker Naik -> D'Souza) rather than a
+        # site error. Still don't assert a name without a phone confirmation.
+        "chairperson": "Unconfirmed — see note: likely Puttanna K (2022) -> Sheker Naik -> Preethi Keerthi D'Souza, call 0824-2287209 to verify current",
         "contact": "Phone: 9740841002 · Office: 0824-2287209",
         "last_verified": "2026-07-22",
         "verified": True,
@@ -161,6 +182,158 @@ CAMPUS_DATA = {
         "verified": True,
         "note": "The department list is confirmed from the official site; an older version of this bot "
                 "had a specific floor-by-floor layout that was a placeholder, not confirmed fact — removed until verified.",
+    },
+
+    # ---------------- Remaining PG departments ----------------
+    # Sourced from the official 2022 "MU Diary" staff directory PDF.
+    # NOT individually re-verified against a 2025/2026 department page like
+    # CS/Physics/Chemistry/Mathematics/MBA above — treat the chairperson
+    # name as a few years old and possibly rotated since. Good enough for
+    # "which department handles X" and a real contact number, but call
+    # ahead if the exact current chairperson's name matters.
+    "applied botany department": {
+        "name": "Department of Applied Botany", "location": "Science Block",
+        "aliases": ["applied botany", "botany"],
+        "chairperson": "Prof. Krishnakumar G. (as of 2022 Diary — verify)",
+        "contact": "Office: 2287272 · Mobile: 9449330901",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "applied zoology department": {
+        "name": "Department of Applied Zoology", "location": "Science Block",
+        "aliases": ["applied zoology", "zoology"],
+        "chairperson": "Prof. Sreepada K.S. (as of 2022 Diary — verify)",
+        "contact": "Office: 2287373 · Mobile: 9481015395",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "biosciences department": {
+        "name": "Department of Biosciences", "location": "Science Block",
+        "aliases": ["biosciences", "biotechnology", "environment science", "food science", "microbiology"],
+        "chairperson": "Prof. Monika Sadananda (as of 2022 Diary — verify)",
+        "contact": "Office: 2287261 · Mobile: 9448869719",
+        "note": "Also coordinates Biotechnology, Environment Science, Food Science & Nutrition, and Microbiology PG courses under the same office.",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "economics department": {
+        "name": "Department of Economics", "location": "Faculty of Arts",
+        "aliases": ["economics"],
+        "chairperson": "Prof. Vishwanatha (as of 2022 Diary — verify)",
+        "contact": "Office: 2287372 · Mobile: 9448503417",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "electronics department": {
+        "name": "Department of Electronics", "location": "Science Block",
+        "aliases": ["electronics"],
+        "chairperson": "Prof. A.M. Khan (as of 2022 Diary — verify)",
+        "contact": "Office: 2287437 · Mobile: 9901752373",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "english department": {
+        "name": "Department of English", "location": "Faculty of Arts",
+        "aliases": ["english"],
+        "chairperson": "Prof. Kishori Nayak K. (as of 2022 Diary — verify)",
+        "contact": "Office: 2287381 · Mobile: 9342035991",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "history department": {
+        "name": "Department of History", "location": "Faculty of Arts",
+        "aliases": ["history"],
+        "chairperson": "Prof. B. Udaya (as of 2022 Diary — verify)",
+        "contact": "Office: 2287294 · Mobile: 9448331284",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "yogic sciences department": {
+        "name": "Department of Human Consciousness & Yogic Sciences", "location": "On campus",
+        "aliases": ["yogic science", "human consciousness"],
+        "chairperson": "Prof. K. Krishna Sharma (as of 2022 Diary — verify)",
+        "contact": "Office: 2287435 · Mobile: 9448241005",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "kannada department": {
+        "name": "Department of Kannada", "location": "Faculty of Arts",
+        "aliases": ["kannada"],
+        "chairperson": "Prof. Somanna (as of 2022 Diary — verify)",
+        "contact": "Office: 2287360 · Mobile: 9886165134",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "library science department": {
+        "name": "Department of Library & Information Science", "location": "Science Block",
+        "aliases": ["library and information science", "library science"],
+        "chairperson": "Prof. Manjaiah D.H. (i/c, as of 2022 Diary — verify)",
+        "contact": "Office: 2287316 · Mobile: 9449444638",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+        "note": "Distinct from the University Library itself — see 'library' entry for the librarian/building.",
+    },
+    "marine geology department": {
+        "name": "Department of Marine Geology", "location": "Science Block",
+        "aliases": ["marine geology", "geo-informatics", "geography"],
+        "chairperson": "Prof. K.S. Jayappa (as of 2022 Diary — verify)",
+        "contact": "Office: 2287389 · Mobile: 9945370876",
+        "note": "Also coordinates Geo-informatics and Geography PG courses.",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "journalism department": {
+        "name": "Department of Mass Communication & Journalism", "location": "Faculty of Arts",
+        "aliases": ["mass communication", "journalism", "mcj"],
+        "chairperson": "Sri M.P. Umeshchandra (as of 2022 Diary — verify)",
+        "contact": "Office: 2287382 · Mobile: 9845848598",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "materials science department": {
+        "name": "Department of Materials Science", "location": "Science Block",
+        "aliases": ["materials science"],
+        "chairperson": "Prof. Manjunatha Pattabi (as of 2022 Diary — verify)",
+        "contact": "Office: 2287249 · Mobile: 9448260563",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "physical education department": {
+        "name": "Department of Physical Education", "location": "Sports/DPE block",
+        "aliases": ["physical education", "sports department"],
+        "chairperson": "Dr. Gerald Santhosh D'Souza (as of 2022 Diary — verify)",
+        "contact": "Office: 2287204 · Mobile: 9343572023",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "political science department": {
+        "name": "Department of Political Science", "location": "Faculty of Arts",
+        "aliases": ["political science"],
+        "chairperson": "Prof. Jayaraj Amin (as of 2022 Diary — verify)",
+        "contact": "Office: 2287364 · Mobile: 9448296840",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "sociology department": {
+        "name": "Department of Sociology", "location": "Faculty of Arts",
+        "aliases": ["sociology"],
+        "chairperson": "Prof. Vinay Rajath D. (as of 2022 Diary — verify)",
+        "contact": "Office: 2287374 · Mobile: 9448815520",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "social work department": {
+        "name": "Department of Social Work", "location": "Faculty of Arts",
+        "aliases": ["social work", "msw"],
+        "chairperson": "Prof. P.G. Aquinas (as of 2022 Diary — verify)",
+        "contact": "Office: 2287621 · Mobile: 9448109870",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "statistics department": {
+        "name": "Department of Statistics", "location": "Science Block",
+        "aliases": ["statistics"],
+        "chairperson": "Prof. Ishwara P. (i/c, as of 2022 Diary — verify)",
+        "contact": "Office: 2287358 · Mobile: 7411735203",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "commerce department": {
+        "name": "Department of Commerce", "location": "Faculty of Commerce",
+        "aliases": ["commerce", "m.com", "mcom"],
+        "chairperson": "Dr. Parameshwara (as of 2022 Diary — verify)",
+        "contact": "Office: 2287263 · Mobile: 9482249259",
+        "verified": True, "last_verified": "2022 (MU Diary)",
+    },
+    "industrial chemistry department": {
+        "name": "Department of Industrial Chemistry", "location": "Science Block",
+        "aliases": ["industrial chemistry", "biochemistry"],
+        "chairperson": "Dr. Ramesh Sabu Gani (as of 2022 Diary — verify)",
+        "contact": "Office: 2287847 · Mobile: 8277346847",
+        "note": "Biochemistry PG runs as a coordinated course under the same office (Prof. Boja Poojary, i/c in 2022).",
+        "verified": True, "last_verified": "2022 (MU Diary)",
     },
 
     # ---------------- Administration ----------------
@@ -274,51 +447,75 @@ CAMPUS_DATA = {
     },
     "guest house": {
         "name": "University Guest House",
-        "location": "UNCONFIRMED",
-        "aliases": ["guest house", "guesthouse"],
-        "verified": False,
-        "note": "Not documented with a specific location on the public site — confirm on campus and fill in.",
+        "location": "On campus — two blocks: Kaveri and Nethravathi",
+        "contact": "Kaveri Guest House: 0824-2287422 · Nethravathi Guest House: 0824-2287242",
+        "person": "Faculty-in-Charge (as of 2022 Diary — verify current name)",
+        "aliases": ["guest house", "guesthouse", "kaveri guest house", "nethravathi guest house"],
+        "verified": True,
+        "last_verified": "2022 (MU Diary)",
+        "note": "Exact building GPS not yet added — but the two guest-house blocks and their booking "
+                "phone numbers are confirmed from the official directory.",
     },
     "parking area": {
         "name": "Parking Area",
         "location": "UNCONFIRMED",
         "aliases": ["parking", "parking area", "vehicle parking"],
         "verified": False,
-        "note": "Contact the Estate Officer (Dr. Parameshwara) for campus infrastructure questions like this "
-                "if it isn't obvious on-site.",
+        "note": "Contact the Estate Officer (Dr. Parameshwara, 9482249259) for campus infrastructure "
+                "questions like this if it isn't obvious on-site.",
     },
     "main gate": {
         "name": "Main Gate",
         "location": "UNCONFIRMED exact GPS",
         "aliases": ["main gate", "entrance", "campus gate"],
         "verified": False,
+        "lat": None,  # <-- fill this in first; every other "directions" entry is relative to this point
+        "lng": None,
         "note": "Every direction in this bot should be relative to this point — get its real GPS pin first, "
                 "since all other 'directions' entries depend on it.",
     },
     "atm": {
-        "name": "ATM",
-        "location": "UNCONFIRMED",
-        "aliases": ["atm", "cash machine", "sbi", "sbi bank", "bank"],
-        "verified": False,
-        "note": "Presence/brand of an on-campus ATM or SBI branch not confirmed from public sources.",
+        "name": "State Bank of India (on/near campus)",
+        "location": "Mangalagangotri campus area",
+        "contact": "SBI: 0824-2449320 · Bank of Baroda: 0824-2287280",
+        "aliases": ["atm", "cash machine", "sbi", "sbi bank", "bank", "bank of baroda"],
+        "verified": True,
+        "last_verified": "2022 (MU Diary)",
+        "note": "Confirmed from the official campus amenities directory — exact building location not yet pinned.",
+    },
+    "security": {
+        "name": "Security Control Room",
+        "location": "On campus",
+        "contact": "Supervisor: 9241266183",
+        "aliases": ["security", "security office", "watchman", "guard"],
+        "verified": True,
+        "last_verified": "2022 (MU Diary)",
+    },
+    "post office": {
+        "name": "Post Office",
+        "location": "On campus",
+        "contact": "0824-2287282",
+        "aliases": ["post office", "postal"],
+        "verified": True,
+        "last_verified": "2022 (MU Diary)",
     },
     "medical center": {
-        "name": "Medical Officer / Health Centre",
-        "location": "UNCONFIRMED",
-        "aliases": ["medical center", "medical centre", "health center", "clinic", "first aid"],
+        "name": "University Health Centre",
+        "location": "On campus",
+        "contact": "0824-2287590",
+        "person": "In-charge as of 2022 Diary: Prof. Raju Krishna Chalannavar — verify current",
+        "aliases": ["medical center", "medical centre", "health center", "health centre", "clinic", "first aid"],
         "verified": True,
-        "note": "The Officers page confirms a 'Medical Officer (In Charge)' post exists, but the name field "
-                "was blank at last check (post may be vacant or in flux) — call the Registrar's office "
-                "(0824-2287276) to find the current contact.",
-        "last_verified": "2026-07-22",
+        "note": "Confirmed to exist with a real office number — the specific in-charge name is a few years old, verify by phone.",
+        "last_verified": "2022 (MU Diary)",
     },
     "canteen": {
         "name": "Canteen",
         "location": "UNCONFIRMED exact location",
         "aliases": ["canten", "canteen", "food court", "mess", "eat", "food"],
         "verified": False,
-        "note": "Existence assumed typical for a residential campus of this size, but not independently "
-                "confirmed with a specific building/GPS from public sources.",
+        "note": "Not found in official sources checked so far (department directory and amenities list don't "
+                "mention one by name) — confirm on-site whether/where one operates.",
     },
     "washroom": {
         "name": "Washroom",
@@ -409,7 +606,23 @@ def format_entry(key):
     if data.get("note"):
         lines.append(f"ℹ️ {data['note']}")
 
+    lines.append(_navigation_block(data))
+
     return "\n".join(lines)
+
+def _navigation_block(data):
+    """Returns a maps link + the Flutter app's location marker.
+    Uses the entry's own lat/lng if set (exact pin); otherwise falls back
+    to the real campus-center coordinate, clearly labeled as approximate."""
+    lat, lng = data.get("lat"), data.get("lng")
+    if lat is not None and lng is not None:
+        return f"\n[🗺️ Open in Google Maps]({get_maps_url(lat, lng)})\n{location_marker(lat, lng)}"
+    return (
+        f"\n📍 _Exact GPS not yet set for this specific spot — pin below goes to the "
+        f"general campus location instead._\n"
+        f"[🗺️ Open Campus in Google Maps]({get_maps_url(CAMPUS_CENTER_LAT, CAMPUS_CENTER_LNG)})\n"
+        f"{location_marker(CAMPUS_CENTER_LAT, CAMPUS_CENTER_LNG)}"
+    )
 
 # ============================================================
 #  INTENT CLASSIFICATION
@@ -516,6 +729,7 @@ def chat(request: ChatRequest):
             answer = f"**Directions to {data['name']}**\n\n{data.get('directions', 'Route not yet documented — see note below.')}"
             if data.get("note"):
                 answer += f"\n\nℹ️ {data['note']}"
+            answer += "\n" + _navigation_block(data)
             return {"intent": intent, "answer": answer}
         return {"intent": intent, "answer": "Which building or office do you need directions to?"}
 
@@ -546,11 +760,11 @@ def chat(request: ChatRequest):
         return {"intent": intent, "answer": "Which place's timings do you need — library, canteen, admin office?"}
 
     if intent in ("Find_Location", "Get_Info"):
-        if entry_key:
-            return {"intent": intent, "answer": format_entry(entry_key)}
         if "show all" in query or "list all" in query:
             names = ", ".join(v["name"] for v in CAMPUS_DATA.values())
             return {"intent": intent, "answer": f"Here's everything I have on file:\n\n{names}"}
+        if entry_key:
+            return {"intent": intent, "answer": format_entry(entry_key)}
         return {"intent": intent, "answer": (
             "I couldn't match that to anything in my database yet. Try naming the department, "
             "office, or facility directly — e.g. \"Computer Science department\" or \"boys hostel\"."
