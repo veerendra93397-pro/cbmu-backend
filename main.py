@@ -40,6 +40,67 @@ class ChatRequest(BaseModel):
 
 FEE_PAGE_URL = "https://mangaloreuniversity.ac.in/fee-details-1.html"
 
+# ============================================================
+#  COURSE_FEES
+#
+#  Per-program fee notifications, pulled from the university's own
+#  Fee Details page (mangaloreuniversity.ac.in/fee-details-1.html).
+#  Mangalore University does NOT publish one number per department —
+#  fees are grouped by PROGRAM CATEGORY and change every academic year.
+#  So instead of a rupee figure (which would go stale within months),
+#  each entry links straight to the current official PDF for that
+#  category. When a newer year's fee page is published, update the
+#  "year" and "pdf" fields here — nothing else needs to change.
+# ============================================================
+
+COURSE_FEES = {
+    "mca": {
+        "label": "MCA (Master of Computer Applications)",
+        "year": "2025-26",
+        "pdf": "https://www.mangaloreuniversity.ac.in/upload/2025/ACC/Fees/PG-Programmes-University-Campus-Constituent-Colleges.pdf",
+        "pdf_label": "PG Fee Structure 2025-26 — University Campus & Constituent Colleges",
+        "note": "MCA is run at the University Campus, so it falls under this category. "
+                "Older years (2022-23 and before) published a separate combined MBA/MCA PDF; "
+                "that split isn't present in the current 2025-26 notification.",
+    },
+    "mba": {
+        "label": "MBA (Business Administration)",
+        "year": "2025-26",
+        "pdf": "https://www.mangaloreuniversity.ac.in/upload/2025/ACC/Fees/PG-Programmes-University-Campus-Constituent-Colleges.pdf",
+        "pdf_label": "PG Fee Structure 2025-26 — University Campus & Constituent Colleges",
+        "note": "Same University Campus PG notification as MCA for 2025-26.",
+    },
+    "pg_affiliated": {
+        "label": "PG Programmes — Affiliated / Autonomous Colleges",
+        "year": "2025-26",
+        "pdf": "https://www.mangaloreuniversity.ac.in/upload/2025/ACC/Fees/PG-Programmes-Affiliated-Autonomous-Colleges.pdf",
+        "pdf_label": "PG Fee Structure 2025-26 — Affiliated & Autonomous Colleges",
+        "note": "Use this if you're at an affiliated or autonomous college, not the main University Campus.",
+    },
+    "pg_government": {
+        "label": "PG Programmes — Government Colleges",
+        "year": "2025-26",
+        "pdf": "https://www.mangaloreuniversity.ac.in/upload/2025/ACC/Fees/PG-Programmes-Government-Colleges.pdf",
+        "pdf_label": "PG Fee Structure 2025-26 — Government Colleges",
+        "note": None,
+    },
+    "ug": {
+        "label": "UG Programmes",
+        "year": "2026-27",
+        "pdf": "https://www.mangaloreuniversity.ac.in/upload/2026/acc/fees/Revised%20UG%20Fee%20Structure-%2026-27.pdf",
+        "pdf_label": "Revised UG Fee Structure 2026-27",
+        "note": None,
+    },
+    "phd": {
+        "label": "Ph.D",
+        "year": "2021-22 (most recent found — verify before quoting)",
+        "pdf": "https://www.mangaloreuniversity.ac.in/upload/academic/Ph.D%20fee%20structure-2021-22.pdf",
+        "pdf_label": "Ph.D Fee Structure 2021-22",
+        "note": "No newer Ph.D-specific fee PDF was found on the site as of the last check — "
+                "confirm with the Registrar's office that this hasn't been superseded.",
+    },
+}
+
 CAMPUS_DATA = {
     "library": {
         "name": "CBMU Central Library",
@@ -79,7 +140,7 @@ CAMPUS_DATA = {
         "location": "Science Block",
         "directions": "From Main Gate: Walk 200m, turn left.",
         "lat": 12.81654, "lng": 74.92276,
-        "aliases": ["computer science", "cs department", "cs dept"],
+        "aliases": ["computer science", "cs department", "cs dept", "mca"],
         "chairperson": "Dr. B.H. Shekar",
         "chairperson_source": "https://mangaloreuniversity.ac.in/chairperson-14.html",
         "contact": "See department contact page (link below) — not independently verified.",
@@ -146,6 +207,41 @@ CAMPUS_DATA = {
 def clean_text(text):
     return re.sub(r'[^\w\s]', '', text.lower().strip())
 
+def find_course_fee(query):
+    """Match a specific course keyword for fee questions (checked before
+    the generic department matcher so 'mca fee' doesn't fall through to
+    the Computer Science department card)."""
+    q = clean_text(query)
+    keyword_map = {
+        "mca": "mca",
+        "mba": "mba",
+        "ug": "ug",
+        "undergraduate": "ug",
+        "b sc": "ug",
+        "bsc": "ug",
+        "ba": "ug",
+        "bcom": "ug",
+        "phd": "phd",
+        "ph d": "phd",
+        "affiliated": "pg_affiliated",
+        "autonomous": "pg_affiliated",
+        "government college": "pg_government",
+        "govt college": "pg_government",
+    }
+    for kw, course_key in keyword_map.items():
+        if kw in q:
+            return course_key
+    return None
+
+def format_course_fee(course_key):
+    c = COURSE_FEES[course_key]
+    response = f"**{c['label']} — Fee Structure ({c['year']})**\n\n"
+    if c["note"]:
+        response += f"ℹ️ {c['note']}\n\n"
+    response += f"[📄 {c['pdf_label']}]({c['pdf']})\n\n"
+    response += f"For any other category, see the full [Fee Details page]({FEE_PAGE_URL})."
+    return response
+
 def find_best_match(query):
     query = clean_text(query)
     for key, data in CAMPUS_DATA.items():
@@ -178,11 +274,24 @@ def chat(request: ChatRequest):
     if query in ['good morning', 'good afternoon', 'good evening']:
         return {"answer": f"{query.capitalize()}!  How can I help you with CBMU today?"}
 
-    # Generic fee question not tied to one department.
-    if any(w in query for w in ["fee", "fees", "tuition", "payment"]) and not find_best_match(query):
+    # Fee questions: check for a NAMED course first (e.g. "mca fee",
+    # "mba fee structure") so the answer is scoped to just that course,
+    # not the whole department card or the whole fee page.
+    if any(w in query for w in ["fee", "fees", "tuition", "payment"]):
+        course_key = find_course_fee(query)
+        if course_key:
+            return {"answer": format_course_fee(course_key)}
+        # Fee question but no specific course named — show the category
+        # list so the person can pick, instead of dumping everything.
         return {"answer": (
-            "Fee structures vary by academic year, degree level (UG/PG/PhD), "
-            f"and college type. Check the current fee notifications here:\n\n[📄 Fee Details]({FEE_PAGE_URL})"
+            "Which fee category do you need?\n\n"
+            "• **MCA** — try \"MCA fee\"\n"
+            "• **MBA** — try \"MBA fee\"\n"
+            "• **UG programmes** — try \"UG fee\"\n"
+            "• **PG at an affiliated/autonomous college** — try \"affiliated college fee\"\n"
+            "• **PG at a government college** — try \"government college fee\"\n"
+            "• **Ph.D** — try \"PhD fee\"\n\n"
+            f"Or browse everything on the [Fee Details page]({FEE_PAGE_URL})."
         )}
 
     building_key = find_best_match(query)
