@@ -15,6 +15,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    lang: str = "en"  # "en" or "kn" — Flutter app sends this based on the user's toggle
 
 # ============================================================
 #  A NOTE ON WHAT'S REAL VS. PLACEHOLDER IN THIS FILE
@@ -110,7 +111,7 @@ CAMPUS_DATA = {
 
     # ---------------- Academic departments ----------------
     "computer science department": {
-        "name": "Department of Computer Science",
+        "name": "Department of Computer Science", "name_kn": "ಗಣಕ ವಿಜ್ಞಾನ ವಿಭಾಗ",
         "location": "Science Block",
         "directions": "From Main Gate: proceed to the Science Block (see Main Gate entry for the campus-wide reference point).",
         "aliases": ["computer science", "cs department", "cs dept", "mca"],
@@ -122,7 +123,7 @@ CAMPUS_DATA = {
         "verified": True,
     },
     "physics department": {
-        "name": "Department of Physics",
+        "name": "Department of Physics", "name_kn": "ಭೌತಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "location": "Science Block",
         "directions": "Within the Science Block — see Science Block entry.",
         "aliases": ["physics", "physics department", "physics dept"],
@@ -132,7 +133,7 @@ CAMPUS_DATA = {
         "verified": True,
     },
     "chemistry department": {
-        "name": "Department of Chemistry",
+        "name": "Department of Chemistry", "name_kn": "ರಸಾಯನಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "location": "Science Block",
         "directions": "Within the Science Block — see Science Block entry.",
         "aliases": ["chemistry", "chemistry department", "chemistry dept"],
@@ -142,7 +143,7 @@ CAMPUS_DATA = {
         "verified": True,
     },
     "mathematics department": {
-        "name": "Department of Mathematics",
+        "name": "Department of Mathematics", "name_kn": "ಗಣಿತ ವಿಭಾಗ",
         "location": "Science Block",
         "directions": "Within the Science Block — see Science Block entry.",
         "aliases": ["mathematics", "maths", "mathematics department", "maths department"],
@@ -152,7 +153,7 @@ CAMPUS_DATA = {
         "verified": True,
     },
     "mba department": {
-        "name": "MBA Department (Business Administration)",
+        "name": "MBA Department (Business Administration)", "name_kn": "ಎಂಬಿಎ ವಿಭಾಗ (ವ್ಯವಹಾರ ಆಡಳಿತ)",
         "location": "Faculty of Commerce",
         "directions": "See Main Gate entry for the campus-wide reference point (exact walking route not yet confirmed).",
         "aliases": ["mba", "management", "business school", "business administration"],
@@ -170,7 +171,7 @@ CAMPUS_DATA = {
         "verified": True,
     },
     "science block": {
-        "name": "Science Block",
+        "name": "Science Block", "name_kn": "ವಿಜ್ಞಾನ ವಿಭಾಗ (ಬ್ಲಾಕ್)",
         "location": "Faculty of Science & Technology cluster",
         "directions": "Houses Computer Science, Physics, Chemistry, Mathematics and other science departments (exact floor plan / GPS pin not yet added — see note below).",
         "aliases": ["science", "sci block"],
@@ -192,21 +193,21 @@ CAMPUS_DATA = {
     # "which department handles X" and a real contact number, but call
     # ahead if the exact current chairperson's name matters.
     "applied botany department": {
-        "name": "Department of Applied Botany", "location": "Science Block",
+        "name": "Department of Applied Botany", "location": "Science Block", "name_kn": "ಅನ್ವಯಿಕ ಸಸ್ಯಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "aliases": ["applied botany", "botany"],
         "chairperson": "Prof. Krishnakumar G. (as of 2022 Diary — verify)",
         "contact": "Office: 2287272 · Mobile: 9449330901",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "applied zoology department": {
-        "name": "Department of Applied Zoology", "location": "Science Block",
+        "name": "Department of Applied Zoology", "location": "Science Block", "name_kn": "ಅನ್ವಯಿಕ ಪ್ರಾಣಿಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "aliases": ["applied zoology", "zoology"],
         "chairperson": "Prof. Sreepada K.S. (as of 2022 Diary — verify)",
         "contact": "Office: 2287373 · Mobile: 9481015395",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "biosciences department": {
-        "name": "Department of Biosciences", "location": "Science Block",
+        "name": "Department of Biosciences", "location": "Science Block", "name_kn": "ಜೀವ ವಿಜ್ಞಾನ ವಿಭಾಗ",
         "aliases": ["biosciences", "biotechnology", "environment science", "food science", "microbiology"],
         "chairperson": "Prof. Monika Sadananda (as of 2022 Diary — verify)",
         "contact": "Office: 2287261 · Mobile: 9448869719",
@@ -214,49 +215,49 @@ CAMPUS_DATA = {
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "economics department": {
-        "name": "Department of Economics", "location": "Faculty of Arts",
+        "name": "Department of Economics", "location": "Faculty of Arts", "name_kn": "ಅರ್ಥಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "aliases": ["economics"],
         "chairperson": "Prof. Vishwanatha (as of 2022 Diary — verify)",
         "contact": "Office: 2287372 · Mobile: 9448503417",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "electronics department": {
-        "name": "Department of Electronics", "location": "Science Block",
+        "name": "Department of Electronics", "location": "Science Block", "name_kn": "ಎಲೆಕ್ಟ್ರಾನಿಕ್ಸ್ ವಿಭಾಗ",
         "aliases": ["electronics"],
         "chairperson": "Prof. A.M. Khan (as of 2022 Diary — verify)",
         "contact": "Office: 2287437 · Mobile: 9901752373",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "english department": {
-        "name": "Department of English", "location": "Faculty of Arts",
+        "name": "Department of English", "location": "Faculty of Arts", "name_kn": "ಇಂಗ್ಲಿಷ್ ವಿಭಾಗ",
         "aliases": ["english"],
         "chairperson": "Prof. Kishori Nayak K. (as of 2022 Diary — verify)",
         "contact": "Office: 2287381 · Mobile: 9342035991",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "history department": {
-        "name": "Department of History", "location": "Faculty of Arts",
+        "name": "Department of History", "location": "Faculty of Arts", "name_kn": "ಇತಿಹಾಸ ವಿಭಾಗ",
         "aliases": ["history"],
         "chairperson": "Prof. B. Udaya (as of 2022 Diary — verify)",
         "contact": "Office: 2287294 · Mobile: 9448331284",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "yogic sciences department": {
-        "name": "Department of Human Consciousness & Yogic Sciences", "location": "On campus",
+        "name": "Department of Human Consciousness & Yogic Sciences", "location": "On campus", "name_kn": "ಮಾನವ ಪ್ರಜ್ಞೆ ಮತ್ತು ಯೋಗ ವಿಜ್ಞಾನ ವಿಭಾಗ",
         "aliases": ["yogic science", "human consciousness"],
         "chairperson": "Prof. K. Krishna Sharma (as of 2022 Diary — verify)",
         "contact": "Office: 2287435 · Mobile: 9448241005",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "kannada department": {
-        "name": "Department of Kannada", "location": "Faculty of Arts",
+        "name": "Department of Kannada", "location": "Faculty of Arts", "name_kn": "ಕನ್ನಡ ವಿಭಾಗ",
         "aliases": ["kannada"],
         "chairperson": "Prof. Somanna (as of 2022 Diary — verify)",
         "contact": "Office: 2287360 · Mobile: 9886165134",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "library science department": {
-        "name": "Department of Library & Information Science", "location": "Science Block",
+        "name": "Department of Library & Information Science", "location": "Science Block", "name_kn": "ಗ್ರಂಥಾಲಯ ಮತ್ತು ಮಾಹಿತಿ ವಿಜ್ಞಾನ ವಿಭಾಗ",
         "aliases": ["library and information science", "library science"],
         "chairperson": "Prof. Manjaiah D.H. (i/c, as of 2022 Diary — verify)",
         "contact": "Office: 2287316 · Mobile: 9449444638",
@@ -264,7 +265,7 @@ CAMPUS_DATA = {
         "note": "Distinct from the University Library itself — see 'library' entry for the librarian/building.",
     },
     "marine geology department": {
-        "name": "Department of Marine Geology", "location": "Science Block",
+        "name": "Department of Marine Geology", "location": "Science Block", "name_kn": "ಸಮುದ್ರ ಭೂವಿಜ್ಞಾನ ವಿಭಾಗ",
         "aliases": ["marine geology", "geo-informatics", "geography"],
         "chairperson": "Prof. K.S. Jayappa (as of 2022 Diary — verify)",
         "contact": "Office: 2287389 · Mobile: 9945370876",
@@ -272,63 +273,63 @@ CAMPUS_DATA = {
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "journalism department": {
-        "name": "Department of Mass Communication & Journalism", "location": "Faculty of Arts",
+        "name": "Department of Mass Communication & Journalism", "location": "Faculty of Arts", "name_kn": "ಸಮೂಹ ಸಂವಹನ ಮತ್ತು ಪತ್ರಿಕೋದ್ಯಮ ವಿಭಾಗ",
         "aliases": ["mass communication", "journalism", "mcj"],
         "chairperson": "Sri M.P. Umeshchandra (as of 2022 Diary — verify)",
         "contact": "Office: 2287382 · Mobile: 9845848598",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "materials science department": {
-        "name": "Department of Materials Science", "location": "Science Block",
+        "name": "Department of Materials Science", "location": "Science Block", "name_kn": "ವಸ್ತು ವಿಜ್ಞಾನ ವಿಭಾಗ",
         "aliases": ["materials science"],
         "chairperson": "Prof. Manjunatha Pattabi (as of 2022 Diary — verify)",
         "contact": "Office: 2287249 · Mobile: 9448260563",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "physical education department": {
-        "name": "Department of Physical Education", "location": "Sports/DPE block",
+        "name": "Department of Physical Education", "location": "Sports/DPE block", "name_kn": "ದೈಹಿಕ ಶಿಕ್ಷಣ ವಿಭಾಗ",
         "aliases": ["physical education", "sports department"],
         "chairperson": "Dr. Gerald Santhosh D'Souza (as of 2022 Diary — verify)",
         "contact": "Office: 2287204 · Mobile: 9343572023",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "political science department": {
-        "name": "Department of Political Science", "location": "Faculty of Arts",
+        "name": "Department of Political Science", "location": "Faculty of Arts", "name_kn": "ರಾಜ್ಯಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "aliases": ["political science"],
         "chairperson": "Prof. Jayaraj Amin (as of 2022 Diary — verify)",
         "contact": "Office: 2287364 · Mobile: 9448296840",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "sociology department": {
-        "name": "Department of Sociology", "location": "Faculty of Arts",
+        "name": "Department of Sociology", "location": "Faculty of Arts", "name_kn": "ಸಮಾಜಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "aliases": ["sociology"],
         "chairperson": "Prof. Vinay Rajath D. (as of 2022 Diary — verify)",
         "contact": "Office: 2287374 · Mobile: 9448815520",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "social work department": {
-        "name": "Department of Social Work", "location": "Faculty of Arts",
+        "name": "Department of Social Work", "location": "Faculty of Arts", "name_kn": "ಸಮಾಜ ಕಾರ್ಯ ವಿಭಾಗ",
         "aliases": ["social work", "msw"],
         "chairperson": "Prof. P.G. Aquinas (as of 2022 Diary — verify)",
         "contact": "Office: 2287621 · Mobile: 9448109870",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "statistics department": {
-        "name": "Department of Statistics", "location": "Science Block",
+        "name": "Department of Statistics", "location": "Science Block", "name_kn": "ಸಂಖ್ಯಾಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "aliases": ["statistics"],
         "chairperson": "Prof. Ishwara P. (i/c, as of 2022 Diary — verify)",
         "contact": "Office: 2287358 · Mobile: 7411735203",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "commerce department": {
-        "name": "Department of Commerce", "location": "Faculty of Commerce",
+        "name": "Department of Commerce", "location": "Faculty of Commerce", "name_kn": "ವಾಣಿಜ್ಯ ವಿಭಾಗ",
         "aliases": ["commerce", "m.com", "mcom"],
         "chairperson": "Dr. Parameshwara (as of 2022 Diary — verify)",
         "contact": "Office: 2287263 · Mobile: 9482249259",
         "verified": True, "last_verified": "2022 (MU Diary)",
     },
     "industrial chemistry department": {
-        "name": "Department of Industrial Chemistry", "location": "Science Block",
+        "name": "Department of Industrial Chemistry", "location": "Science Block", "name_kn": "ಕೈಗಾರಿಕಾ ರಸಾಯನಶಾಸ್ತ್ರ ವಿಭಾಗ",
         "aliases": ["industrial chemistry", "biochemistry"],
         "chairperson": "Dr. Ramesh Sabu Gani (as of 2022 Diary — verify)",
         "contact": "Office: 2287847 · Mobile: 8277346847",
@@ -338,7 +339,7 @@ CAMPUS_DATA = {
 
     # ---------------- Administration ----------------
     "vice chancellor office": {
-        "name": "Vice Chancellor's Office",
+        "name": "Vice Chancellor's Office", "name_kn": "ಕುಲಪತಿಗಳ ಕಚೇರಿ",
         "location": "Administration",
         "person": "Prof. P.L. Dharma (Vice Chancellor)",
         "contact": "Office: 0824-2287347",
@@ -347,7 +348,7 @@ CAMPUS_DATA = {
         "last_verified": "2026-07-22",
     },
     "registrar office": {
-        "name": "Registrar's Office",
+        "name": "Registrar's Office", "name_kn": "ಕುಲಸಚಿವರ ಕಚೇರಿ",
         "location": "Administration",
         "person": "Dr. Ganesh Sanjeev (Registrar)",
         "contact": "Office: 0824-2287276",
@@ -356,7 +357,7 @@ CAMPUS_DATA = {
         "last_verified": "2026-07-22",
     },
     "examination section": {
-        "name": "Examination Section — Registrar (Evaluation)",
+        "name": "Examination Section — Registrar (Evaluation)", "name_kn": "ಪರೀಕ್ಷಾ ವಿಭಾಗ (ಕುಲಸಚಿವರು - ಮೌಲ್ಯಮಾಪನ)",
         "location": "Administration",
         "person": "Dr. H Devendrappa (Registrar, Evaluation)",
         "contact": "Office: 0824-2287327 · Exam/marks-card queries: +91-948-160-8909",
@@ -366,7 +367,7 @@ CAMPUS_DATA = {
         "note": "Migration certificates are also handled through this office (see 'migration certificate' below).",
     },
     "migration certificate": {
-        "name": "Migration Certificate",
+        "name": "Migration Certificate", "name_kn": "ವಲಸೆ ಪ್ರಮಾಣಪತ್ರ",
         "location": "Handled by the Examination Section / Registrar (Evaluation)",
         "person": "Dr. H Devendrappa (Registrar, Evaluation)",
         "contact": "Office: 0824-2287327",
@@ -377,7 +378,7 @@ CAMPUS_DATA = {
         "last_verified": "2026-07-22",
     },
     "finance section": {
-        "name": "Finance Officer's Section",
+        "name": "Finance Officer's Section", "name_kn": "ಹಣಕಾಸು ಅಧಿಕಾರಿಗಳ ವಿಭಾಗ",
         "location": "Administration",
         "person": "Sri Panchalingaswamy S. (Finance Officer)",
         "contact": "Office: 0824-2287376",
@@ -386,7 +387,7 @@ CAMPUS_DATA = {
         "last_verified": "2026-07-22",
     },
     "international student office": {
-        "name": "International Students Centre",
+        "name": "International Students Centre", "name_kn": "ಅಂತರರಾಷ್ಟ್ರೀಯ ವಿದ್ಯಾರ್ಥಿಗಳ ಕೇಂದ್ರ",
         "location": "Administration",
         "person": "Dr. B.H. Shekar (Director, also CS Department Chairperson)",
         "contact": "Mobile: 9480146921",
@@ -395,7 +396,7 @@ CAMPUS_DATA = {
         "last_verified": "2026-07-22",
     },
     "library": {
-        "name": "University Library",
+        "name": "University Library", "name_kn": "ವಿಶ್ವವಿದ್ಯಾಲಯ ಗ್ರಂಥಾಲಯ",
         "location": "Central Library building",
         "person": "Dr. M. Purushotham Gowda (Librarian, i/c)",
         "contact": "Mobile: 9449450671",
@@ -407,7 +408,7 @@ CAMPUS_DATA = {
 
     # ---------------- Hostels ----------------
     "boys hostel": {
-        "name": "University Hostel for Men",
+        "name": "University Hostel for Men", "name_kn": "ಪುರುಷರ ವಿಶ್ವವಿದ್ಯಾಲಯ ವಸತಿ ನಿಲಯ",
         "location": "On campus (exact building/GPS not yet confirmed)",
         "person": "Dr. Ramesh H.N. (Faculty Advisor)",
         "contact": "Office: 0824-2287206",
@@ -416,7 +417,7 @@ CAMPUS_DATA = {
         "last_verified": "2026-07-22",
     },
     "ladies hostel": {
-        "name": "University Hostel for Women",
+        "name": "University Hostel for Women", "name_kn": "ಮಹಿಳೆಯರ ವಿಶ್ವವಿದ್ಯಾಲಯ ವಸತಿ ನಿಲಯ",
         "location": "On campus (exact building/GPS not yet confirmed)",
         "person": "Dr. H.L Shashirekha (Faculty Advisor)",
         "contact": "Office: 0824-2287319",
@@ -429,7 +430,7 @@ CAMPUS_DATA = {
 
     # ---------------- Facilities not published by the university (placeholders) ----------------
     "kuvempu bhavan": {
-        "name": "\"Kuvempu Bhavan\"",
+        "name": "\"Kuvempu Bhavan\"", "name_kn": "\"ಕುವೆಂಪು ಭವನ\"",
         "location": "UNCONFIRMED",
         "aliases": ["kuvempu bhavan"],
         "verified": False,
@@ -438,7 +439,7 @@ CAMPUS_DATA = {
                 "these may be what's meant. Confirm on campus, then fill in the real name/location here.",
     },
     "auditorium": {
-        "name": "Mangala Auditorium",
+        "name": "Mangala Auditorium", "name_kn": "ಮಂಗಳಾ ಸಭಾಂಗಣ",
         "location": "UNCONFIRMED exact location",
         "aliases": ["auditorium", "mangala auditorium"],
         "verified": False,
@@ -446,7 +447,7 @@ CAMPUS_DATA = {
                 "position not confirmed from public sources — add the real pin here.",
     },
     "guest house": {
-        "name": "University Guest House",
+        "name": "University Guest House", "name_kn": "ವಿಶ್ವವಿದ್ಯಾಲಯ ಅತಿಥಿ ಗೃಹ",
         "location": "On campus — two blocks: Kaveri and Nethravathi",
         "contact": "Kaveri Guest House: 0824-2287422 · Nethravathi Guest House: 0824-2287242",
         "person": "Faculty-in-Charge (as of 2022 Diary — verify current name)",
@@ -457,7 +458,7 @@ CAMPUS_DATA = {
                 "phone numbers are confirmed from the official directory.",
     },
     "parking area": {
-        "name": "Parking Area",
+        "name": "Parking Area", "name_kn": "ವಾಹನ ನಿಲುಗಡೆ ಪ್ರದೇಶ",
         "location": "UNCONFIRMED",
         "aliases": ["parking", "parking area", "vehicle parking"],
         "verified": False,
@@ -465,7 +466,7 @@ CAMPUS_DATA = {
                 "questions like this if it isn't obvious on-site.",
     },
     "main gate": {
-        "name": "Main Gate",
+        "name": "Main Gate", "name_kn": "ಮುಖ್ಯ ದ್ವಾರ",
         "location": "UNCONFIRMED exact GPS",
         "aliases": ["main gate", "entrance", "campus gate"],
         "verified": False,
@@ -475,7 +476,7 @@ CAMPUS_DATA = {
                 "since all other 'directions' entries depend on it.",
     },
     "atm": {
-        "name": "State Bank of India (on/near campus)",
+        "name": "State Bank of India (on/near campus)", "name_kn": "ಭಾರತೀಯ ಸ್ಟೇಟ್ ಬ್ಯಾಂಕ್ (ಕ್ಯಾಂಪಸ್‌ನಲ್ಲಿ/ಹತ್ತಿರ)",
         "location": "Mangalagangotri campus area",
         "contact": "SBI: 0824-2449320 · Bank of Baroda: 0824-2287280",
         "aliases": ["atm", "cash machine", "sbi", "sbi bank", "bank", "bank of baroda"],
@@ -484,7 +485,7 @@ CAMPUS_DATA = {
         "note": "Confirmed from the official campus amenities directory — exact building location not yet pinned.",
     },
     "security": {
-        "name": "Security Control Room",
+        "name": "Security Control Room", "name_kn": "ಭದ್ರತಾ ನಿಯಂತ್ರಣ ಕೊಠಡಿ",
         "location": "On campus",
         "contact": "Supervisor: 9241266183",
         "aliases": ["security", "security office", "watchman", "guard"],
@@ -492,7 +493,7 @@ CAMPUS_DATA = {
         "last_verified": "2022 (MU Diary)",
     },
     "post office": {
-        "name": "Post Office",
+        "name": "Post Office", "name_kn": "ಅಂಚೆ ಕಚೇರಿ",
         "location": "On campus",
         "contact": "0824-2287282",
         "aliases": ["post office", "postal"],
@@ -500,7 +501,7 @@ CAMPUS_DATA = {
         "last_verified": "2022 (MU Diary)",
     },
     "medical center": {
-        "name": "University Health Centre",
+        "name": "University Health Centre", "name_kn": "ವಿಶ್ವವಿದ್ಯಾಲಯ ಆರೋಗ್ಯ ಕೇಂದ್ರ",
         "location": "On campus",
         "contact": "0824-2287590",
         "person": "In-charge as of 2022 Diary: Prof. Raju Krishna Chalannavar — verify current",
@@ -510,7 +511,7 @@ CAMPUS_DATA = {
         "last_verified": "2022 (MU Diary)",
     },
     "canteen": {
-        "name": "Canteen",
+        "name": "Canteen", "name_kn": "ಕ್ಯಾಂಟೀನ್",
         "location": "UNCONFIRMED exact location",
         "aliases": ["canten", "canteen", "food court", "mess", "eat", "food"],
         "verified": False,
@@ -518,7 +519,7 @@ CAMPUS_DATA = {
                 "mention one by name) — confirm on-site whether/where one operates.",
     },
     "washroom": {
-        "name": "Washroom",
+        "name": "Washroom", "name_kn": "ಶೌಚಾಲಯ",
         "location": "UNCONFIRMED — varies by building",
         "aliases": ["washroom", "restroom", "toilet"],
         "verified": False,
@@ -526,7 +527,7 @@ CAMPUS_DATA = {
                 "answer without knowing the user's current location (see Find_Nearest note below).",
     },
     "xerox": {
-        "name": "Xerox / Printing",
+        "name": "Xerox / Printing", "name_kn": "ಜೆರಾಕ್ಸ್ / ಮುದ್ರಣ",
         "location": "UNCONFIRMED",
         "aliases": ["xerox", "photocopy", "print", "printout"],
         "verified": False,
@@ -536,6 +537,108 @@ CAMPUS_DATA = {
 
 def clean_text(text):
     return re.sub(r'[^\w\s]', '', text.lower().strip())
+
+# ============================================================
+#  TRANSLATIONS
+#
+#  Only the bot's OWN wording is translated (labels, prompts, canned
+#  replies). Official names, department titles, and person names are
+#  NOT auto-translated/transliterated — those are proper nouns and
+#  should only change if the university itself publishes a Kannada
+#  version (mangaloreuniversity.ac.in/kannada/index.html exists — pull
+#  official Kannada names from there if you want full localization).
+# ============================================================
+
+T = {
+    "en": {
+        "greeting": "Hello! 👋 I'm the Mangalore University Assistant. I can help with department info, office locations, timings, and fees. What do you need?",
+        "goodbye_thanks": "You're welcome! 😊",
+        "goodbye": "Goodbye! 👋 See you again soon!",
+        "clarification": "No worries — tell me what you're looking for and I'll do my best. For example:\n"
+                          "• \"Where is the library?\"\n"
+                          "• \"Who is the HOD of Computer Science?\"\n"
+                          "• \"MCA fee\"\n"
+                          "• \"Registrar office contact\"",
+        "fee_menu": "Which fee category do you need?\n\n"
+                    "• **MCA** — try \"MCA fee\"\n"
+                    "• **MBA** — try \"MBA fee\"\n"
+                    "• **UG programmes** — try \"UG fee\"\n"
+                    "• **Affiliated/autonomous college PG** — try \"affiliated college fee\"\n"
+                    "• **Government college PG** — try \"government college fee\"\n"
+                    "• **Ph.D** — try \"PhD fee\"\n\n"
+                    "Or browse everything on the [Fee Details page]({fee_url}).",
+        "fee_other": "For any other category, see the full [Fee Details page]({fee_url}).",
+        "directions_which": "Which building or office do you need directions to?",
+        "distance_stub": "I can't calculate live walking distance/time yet — that needs a maps routing API "
+                          "plus your current GPS position, which this text-only backend doesn't have wired up. "
+                          "For now I can tell you the relative direction from the Main Gate if you ask "
+                          "\"how do I reach X\" instead.",
+        "nearest_stub": "Finding the *nearest* facility to you specifically requires your live location, which "
+                        "this backend doesn't receive yet. If your app can send GPS coordinates with the request, "
+                        "I can be upgraded to calculate nearest-facility properly — for now, tell me which specific "
+                        "place you mean (e.g. \"canteen\") and I'll share what's documented about it.",
+        "timings_which": "Which place's timings do you need — library, canteen, admin office?",
+        "timings_not_published": "Specific hours for {name} aren't published on the official site — call the contact below to confirm.",
+        "no_match": "I couldn't match that to anything in my database yet. Try naming the department, "
+                    "office, or facility directly — e.g. \"Computer Science department\" or \"boys hostel\".",
+        "list_all_header": "Here's everything I have on file:",
+        "faq_fallback": "I didn't fully understand that. Try asking about a department, office, hostel, or fees — "
+                        "or say \"help\" to see what I can do.",
+        "label_chairperson": "Chairperson",
+        "label_as_of": "as of",
+        "label_directions": "",  # directions text already has its own icon+prefix
+        "unverified_warning": "Not independently confirmed from the official university site — see note below.",
+        "gps_missing": "Exact GPS not yet set for this specific spot — pin below goes to the general campus location instead.",
+        "open_maps": "Open in Google Maps",
+        "open_campus_maps": "Open Campus in Google Maps",
+        "directions_to": "Directions to",
+    },
+    "kn": {
+        "greeting": "ನಮಸ್ಕಾರ! 👋 ನಾನು ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯದ ಸಹಾಯಕ. ವಿಭಾಗದ ಮಾಹಿತಿ, ಕಚೇರಿ ಸ್ಥಳಗಳು, ಸಮಯ ಮತ್ತು ಶುಲ್ಕದ ಬಗ್ಗೆ ನಾನು ಸಹಾಯ ಮಾಡಬಲ್ಲೆ. ನಿಮಗೆ ಏನು ಬೇಕು?",
+        "goodbye_thanks": "ಸ್ವಾಗತ! 😊",
+        "goodbye": "ವಿದಾಯ! 👋 ಮತ್ತೆ ಸಿಗೋಣ!",
+        "clarification": "ಪರವಾಗಿಲ್ಲ — ನಿಮಗೆ ಏನು ಬೇಕು ಎಂದು ಹೇಳಿ, ನಾನು ಪ್ರಯತ್ನಿಸುತ್ತೇನೆ. ಉದಾಹರಣೆಗೆ:\n"
+                          "• \"ಗ್ರಂಥಾಲಯ ಎಲ್ಲಿದೆ?\"\n"
+                          "• \"ಕಂಪ್ಯೂಟರ್ ಸೈನ್ಸ್ ವಿಭಾಗದ ಮುಖ್ಯಸ್ಥರು ಯಾರು?\"\n"
+                          "• \"MCA ಶುಲ್ಕ\"\n"
+                          "• \"ರಿಜಿಸ್ಟ್ರಾರ್ ಕಚೇರಿ ಸಂಪರ್ಕ\"",
+        "fee_menu": "ನಿಮಗೆ ಯಾವ ಶುಲ್ಕ ವಿಭಾಗ ಬೇಕು?\n\n"
+                    "• **MCA** — \"MCA ಶುಲ್ಕ\" ಎಂದು ಕೇಳಿ\n"
+                    "• **MBA** — \"MBA ಶುಲ್ಕ\" ಎಂದು ಕೇಳಿ\n"
+                    "• **UG ಕಾರ್ಯಕ್ರಮಗಳು** — \"UG ಶುಲ್ಕ\" ಎಂದು ಕೇಳಿ\n"
+                    "• **ಅಂಗಸಂಸ್ಥೆ/ಸ್ವಾಯತ್ತ ಕಾಲೇಜು PG** — \"affiliated college fee\" ಎಂದು ಕೇಳಿ\n"
+                    "• **ಸರ್ಕಾರಿ ಕಾಲೇಜು PG** — \"government college fee\" ಎಂದು ಕೇಳಿ\n"
+                    "• **Ph.D** — \"PhD fee\" ಎಂದು ಕೇಳಿ\n\n"
+                    "ಅಥವಾ ಎಲ್ಲವನ್ನೂ [ಶುಲ್ಕ ವಿವರಗಳ ಪುಟ]({fee_url}) ದಲ್ಲಿ ನೋಡಿ.",
+        "fee_other": "ಇತರ ಯಾವುದೇ ವಿಭಾಗಕ್ಕಾಗಿ, ಸಂಪೂರ್ಣ [ಶುಲ್ಕ ವಿವರಗಳ ಪುಟ]({fee_url}) ನೋಡಿ.",
+        "directions_which": "ನಿಮಗೆ ಯಾವ ಕಟ್ಟಡ ಅಥವಾ ಕಚೇರಿಗೆ ದಾರಿ ಬೇಕು?",
+        "distance_stub": "ನಿಖರವಾದ ನಡಿಗೆ ದೂರ/ಸಮಯವನ್ನು ಇನ್ನೂ ಲೆಕ್ಕ ಹಾಕಲು ಸಾಧ್ಯವಿಲ್ಲ — ಅದಕ್ಕೆ ಮ್ಯಾಪ್ಸ್ ರೂಟಿಂಗ್ API ಮತ್ತು ನಿಮ್ಮ ಪ್ರಸ್ತುತ GPS ಸ್ಥಳ ಬೇಕು. "
+                          "ಬದಲಿಗೆ \"how do I reach X\" ಎಂದು ಕೇಳಿದರೆ ಮುಖ್ಯ ಗೇಟಿನಿಂದ ದಿಕ್ಕನ್ನು ಹೇಳಬಲ್ಲೆ.",
+        "nearest_stub": "ನಿಮಗೆ ಹತ್ತಿರವಿರುವ ಸೌಲಭ್ಯವನ್ನು ಕಂಡುಹಿಡಿಯಲು ನಿಮ್ಮ ಪ್ರಸ್ತುತ ಸ್ಥಳ ಬೇಕು, ಅದು ಈ ಬ್ಯಾಕೆಂಡ್‌ಗೆ ಇನ್ನೂ ಸಿಗುತ್ತಿಲ್ಲ. "
+                        "ಈಗಿನಂತೆ, ನೀವು ಉದ್ದೇಶಿಸಿರುವ ನಿರ್ದಿಷ್ಟ ಸ್ಥಳವನ್ನು ಹೆಸರಿಸಿ (ಉದಾ. \"canteen\").",
+        "timings_which": "ಯಾವ ಸ್ಥಳದ ಸಮಯ ಬೇಕು — ಗ್ರಂಥಾಲಯ, ಕ್ಯಾಂಟೀನ್, ಆಡಳಿತ ಕಚೇರಿ?",
+        "timings_not_published": "{name} ನ ನಿಖರ ಸಮಯ ಅಧಿಕೃತ ಜಾಲತಾಣದಲ್ಲಿ ಪ್ರಕಟವಾಗಿಲ್ಲ — ದೃಢೀಕರಿಸಲು ಕೆಳಗಿನ ಸಂಪರ್ಕಕ್ಕೆ ಕರೆ ಮಾಡಿ.",
+        "no_match": "ಅದು ನನ್ನ ಡೇಟಾಬೇಸ್‌ನಲ್ಲಿ ಇನ್ನೂ ಹೊಂದಿಕೆಯಾಗಲಿಲ್ಲ. ವಿಭಾಗ, ಕಚೇರಿ ಅಥವಾ ಸೌಲಭ್ಯದ ಹೆಸರನ್ನು ನೇರವಾಗಿ ಹೇಳಿ — "
+                    "ಉದಾ. \"Computer Science department\" ಅಥವಾ \"boys hostel\".",
+        "list_all_header": "ನನ್ನ ಬಳಿ ಇರುವ ಎಲ್ಲದರ ಪಟ್ಟಿ:",
+        "faq_fallback": "ಅದು ನನಗೆ ಸಂಪೂರ್ಣವಾಗಿ ಅರ್ಥವಾಗಲಿಲ್ಲ. ವಿಭಾಗ, ಕಚೇರಿ, ಹಾಸ್ಟೆಲ್ ಅಥವಾ ಶುಲ್ಕದ ಬಗ್ಗೆ ಕೇಳಿ — "
+                        "ಅಥವಾ ನಾನು ಏನು ಮಾಡಬಲ್ಲೆ ಎಂದು ನೋಡಲು \"help\" ಎಂದು ಹೇಳಿ.",
+        "label_chairperson": "ಮುಖ್ಯಸ್ಥರು",
+        "label_as_of": "ಈ ದಿನಾಂಕದಂತೆ",
+        "label_directions": "",
+        "unverified_warning": "ಅಧಿಕೃತ ವಿಶ್ವವಿದ್ಯಾಲಯ ಜಾಲತಾಣದಿಂದ ಸ್ವತಂತ್ರವಾಗಿ ದೃಢೀಕರಿಸಲಾಗಿಲ್ಲ — ಕೆಳಗಿನ ಟಿಪ್ಪಣಿ ನೋಡಿ.",
+        "gps_missing": "ಈ ನಿರ್ದಿಷ್ಟ ಸ್ಥಳಕ್ಕೆ ನಿಖರ GPS ಇನ್ನೂ ಹೊಂದಿಸಿಲ್ಲ — ಕೆಳಗಿನ ಪಿನ್ ಸಾಮಾನ್ಯ ಕ್ಯಾಂಪಸ್ ಸ್ಥಳಕ್ಕೆ ಹೋಗುತ್ತದೆ.",
+        "open_maps": "ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ",
+        "open_campus_maps": "ಕ್ಯಾಂಪಸ್ಸನ್ನು ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ",
+        "directions_to": "ಇಲ್ಲಿಗೆ ದಾರಿ",
+    },
+}
+
+def tr(key, lang, **kwargs):
+    """Look up a translated string, falling back to English if the key or
+    language is missing, then apply any {placeholders}."""
+    s = T.get(lang, T["en"]).get(key) or T["en"].get(key, key)
+    return s.format(**kwargs) if kwargs else s
 
 def find_course_fee(query):
     q = clean_text(query)
@@ -551,13 +654,13 @@ def find_course_fee(query):
             return course_key
     return None
 
-def format_course_fee(course_key):
+def format_course_fee(course_key, lang="en"):
     c = COURSE_FEES[course_key]
     response = f"**{c['label']} — Fee Structure ({c['year']})**\n\n"
     if c["note"]:
         response += f"ℹ️ {c['note']}\n\n"
     response += f"[📄 {c['pdf_label']}]({c['pdf']})\n\n"
-    response += f"For any other category, see the full [Fee Details page]({FEE_PAGE_URL})."
+    response += tr("fee_other", lang, fee_url=FEE_PAGE_URL)
     return response
 
 def find_best_match(query):
@@ -571,12 +674,13 @@ def find_best_match(query):
     matches = difflib.get_close_matches(query, list(CAMPUS_DATA.keys()), n=1, cutoff=0.6)
     return matches[0] if matches else None
 
-def format_entry(key):
+def format_entry(key, lang="en"):
     data = CAMPUS_DATA[key]
-    lines = [f"**{data['name']}**"]
+    display_name = data.get("name_kn") if lang == "kn" and data.get("name_kn") else data['name']
+    lines = [f"**{display_name}**"]
 
     if not data.get("verified", True):
-        lines.append("⚠️ _Not independently confirmed from the official university site — see note below._")
+        lines.append(f"⚠️ _{tr('unverified_warning', lang)}_")
 
     lines.append(f"📍 {data['location']}")
 
@@ -586,9 +690,9 @@ def format_entry(key):
     if "person" in data:
         lines.append(f"👤 {data['person']}")
     if "chairperson" in data:
-        cp_line = f"👤 **Chairperson:** {data['chairperson']}"
+        cp_line = f"👤 **{tr('label_chairperson', lang)}:** {data['chairperson']}"
         if "last_verified" in data:
-            cp_line += f" _(as of {data['last_verified']})_"
+            cp_line += f" _({tr('label_as_of', lang)} {data['last_verified']})_"
         lines.append(cp_line)
 
     if "contact" in data:
@@ -606,21 +710,20 @@ def format_entry(key):
     if data.get("note"):
         lines.append(f"ℹ️ {data['note']}")
 
-    lines.append(_navigation_block(data))
+    lines.append(_navigation_block(data, lang))
 
     return "\n".join(lines)
 
-def _navigation_block(data):
+def _navigation_block(data, lang="en"):
     """Returns a maps link + the Flutter app's location marker.
     Uses the entry's own lat/lng if set (exact pin); otherwise falls back
     to the real campus-center coordinate, clearly labeled as approximate."""
     lat, lng = data.get("lat"), data.get("lng")
     if lat is not None and lng is not None:
-        return f"\n[🗺️ Open in Google Maps]({get_maps_url(lat, lng)})\n{location_marker(lat, lng)}"
+        return f"\n[🗺️ {tr('open_maps', lang)}]({get_maps_url(lat, lng)})\n{location_marker(lat, lng)}"
     return (
-        f"\n📍 _Exact GPS not yet set for this specific spot — pin below goes to the "
-        f"general campus location instead._\n"
-        f"[🗺️ Open Campus in Google Maps]({get_maps_url(CAMPUS_CENTER_LAT, CAMPUS_CENTER_LNG)})\n"
+        f"\n📍 _{tr('gps_missing', lang)}_\n"
+        f"[🗺️ {tr('open_campus_maps', lang)}]({get_maps_url(CAMPUS_CENTER_LAT, CAMPUS_CENTER_LNG)})\n"
         f"{location_marker(CAMPUS_CENTER_LAT, CAMPUS_CENTER_LNG)}"
     )
 
@@ -683,94 +786,63 @@ def root():
 @app.post("/chat")
 def chat(request: ChatRequest):
     query = request.message.lower().strip()
+    lang = request.lang if request.lang in T else "en"
     intent = classify_intent(query)
 
     if intent == "Greeting":
-        return {"intent": intent, "answer": (
-            "Hello! 👋 I'm the Mangalore University Assistant. I can help with department info, "
-            "office locations, timings, and fees. What do you need?"
-        )}
+        return {"intent": intent, "answer": tr("greeting", lang)}
 
     if intent == "Goodbye":
         if "thank" in query:
-            return {"intent": intent, "answer": "You're welcome! 😊"}
-        return {"intent": intent, "answer": "Goodbye! 👋 See you again soon!"}
+            return {"intent": intent, "answer": tr("goodbye_thanks", lang)}
+        return {"intent": intent, "answer": tr("goodbye", lang)}
 
     if intent == "Clarification":
-        return {"intent": intent, "answer": (
-            "No worries — tell me what you're looking for and I'll do my best. For example:\n"
-            "• \"Where is the library?\"\n"
-            "• \"Who is the HOD of Computer Science?\"\n"
-            "• \"MCA fee\"\n"
-            "• \"Registrar office contact\""
-        )}
+        return {"intent": intent, "answer": tr("clarification", lang)}
 
     # Fee sub-routing (still under Get_Info)
     course_key = find_course_fee(query)
     if course_key and any(w in query for w in ["fee", "fees", "tuition", "payment"]):
-        return {"intent": intent, "answer": format_course_fee(course_key)}
+        return {"intent": intent, "answer": format_course_fee(course_key, lang)}
     if any(w in query for w in ["fee", "fees", "tuition", "payment"]):
-        return {"intent": intent, "answer": (
-            "Which fee category do you need?\n\n"
-            "• **MCA** — try \"MCA fee\"\n"
-            "• **MBA** — try \"MBA fee\"\n"
-            "• **UG programmes** — try \"UG fee\"\n"
-            "• **Affiliated/autonomous college PG** — try \"affiliated college fee\"\n"
-            "• **Government college PG** — try \"government college fee\"\n"
-            "• **Ph.D** — try \"PhD fee\"\n\n"
-            f"Or browse everything on the [Fee Details page]({FEE_PAGE_URL})."
-        )}
+        return {"intent": intent, "answer": tr("fee_menu", lang, fee_url=FEE_PAGE_URL)}
 
     entry_key = find_best_match(query)
 
     if intent == "Get_Directions":
         if entry_key:
             data = CAMPUS_DATA[entry_key]
-            answer = f"**Directions to {data['name']}**\n\n{data.get('directions', 'Route not yet documented — see note below.')}"
+            display_name = data.get("name_kn") if lang == "kn" and data.get("name_kn") else data['name']
+            answer = f"**{tr('directions_to', lang)} {display_name}**\n\n{data.get('directions', 'Route not yet documented — see note below.')}"
             if data.get("note"):
                 answer += f"\n\nℹ️ {data['note']}"
-            answer += "\n" + _navigation_block(data)
+            answer += "\n" + _navigation_block(data, lang)
             return {"intent": intent, "answer": answer}
-        return {"intent": intent, "answer": "Which building or office do you need directions to?"}
+        return {"intent": intent, "answer": tr("directions_which", lang)}
 
     if intent == "Get_Distance":
-        return {"intent": intent, "answer": (
-            "I can't calculate live walking distance/time yet — that needs a maps routing API "
-            "plus your current GPS position, which this text-only backend doesn't have wired up. "
-            "For now I can tell you the relative direction from the Main Gate if you ask "
-            "\"how do I reach X\" instead."
-        )}
+        return {"intent": intent, "answer": tr("distance_stub", lang)}
 
     if intent == "Find_Nearest":
-        return {"intent": intent, "answer": (
-            "Finding the *nearest* facility to you specifically requires your live location, which "
-            "this backend doesn't receive yet. If your app can send GPS coordinates with the request, "
-            "I can be upgraded to calculate nearest-facility properly — for now, tell me which specific "
-            "place you mean (e.g. \"canteen\") and I'll share what's documented about it."
-        )}
+        return {"intent": intent, "answer": tr("nearest_stub", lang)}
 
     if intent == "Get_Timings":
         if entry_key and "timings" in CAMPUS_DATA[entry_key]:
-            return {"intent": intent, "answer": format_entry(entry_key)}
+            return {"intent": intent, "answer": format_entry(entry_key, lang)}
         if entry_key:
-            return {"intent": intent, "answer": (
-                f"Specific hours for {CAMPUS_DATA[entry_key]['name']} aren't published on the official "
-                "site — call the contact below to confirm.\n\n" + format_entry(entry_key)
-            )}
-        return {"intent": intent, "answer": "Which place's timings do you need — library, canteen, admin office?"}
+            note = tr("timings_not_published", lang, name=CAMPUS_DATA[entry_key]['name'])
+            return {"intent": intent, "answer": note + "\n\n" + format_entry(entry_key, lang)}
+        return {"intent": intent, "answer": tr("timings_which", lang)}
 
     if intent in ("Find_Location", "Get_Info"):
         if "show all" in query or "list all" in query:
-            names = ", ".join(v["name"] for v in CAMPUS_DATA.values())
-            return {"intent": intent, "answer": f"Here's everything I have on file:\n\n{names}"}
+            if lang == "kn":
+                names = ", ".join(v.get("name_kn") or v["name"] for v in CAMPUS_DATA.values())
+            else:
+                names = ", ".join(v["name"] for v in CAMPUS_DATA.values())
+            return {"intent": intent, "answer": f"{tr('list_all_header', lang)}\n\n{names}"}
         if entry_key:
-            return {"intent": intent, "answer": format_entry(entry_key)}
-        return {"intent": intent, "answer": (
-            "I couldn't match that to anything in my database yet. Try naming the department, "
-            "office, or facility directly — e.g. \"Computer Science department\" or \"boys hostel\"."
-        )}
+            return {"intent": intent, "answer": format_entry(entry_key, lang)}
+        return {"intent": intent, "answer": tr("no_match", lang)}
 
-    return {"intent": "FAQ", "answer": (
-        "I didn't fully understand that. Try asking about a department, office, hostel, or fees — "
-        "or say \"help\" to see what I can do."
-    )}
+    return {"intent": "FAQ", "answer": tr("faq_fallback", lang)}
