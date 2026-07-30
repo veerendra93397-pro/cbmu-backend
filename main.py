@@ -706,7 +706,7 @@ T = {
                     "ಅಥವಾ ಎಲ್ಲವನ್ನೂ [ಶುಲ್ಕ ವಿವರಗಳ ಪುಟ]({fee_url}) ದಲ್ಲಿ ನೋಡಿ.",
         "fee_other": "ಇತರ ಯಾವುದೇ ವಿಭಾಗಕ್ಕಾಗಿ, ಸಂಪೂರ್ಣ [ಶುಲ್ಕ ವಿವರಗಳ ಪುಟ]({fee_url}) ನೋಡಿ.",
         "directions_which": "ನಿಮಗೆ ಯಾವ ಕಟ್ಟಡ ಅಥವಾ ಕಚೇರಿಗೆ ದಾರಿ ಬೇಕು?",
-        "distance_stub": "ನಿಖರವಾದ ನಡಿಗೆ ದೂರ/ಸಮಯವನ್ನು ಇನ್ನೂ ಲೆಕ್ಕ ಹಾಕಲು ಸಾಧ್ಯವಿಲ್ಲ — ಅದಕ್ಕೆ ಮ್ಯಾಪ್ಸ್ ರೂಟಿಂಗ್ API ಮತ್ತು ನಿಮ್ಮ ಪ್ರಸ್ತುತ GPS ಸ್ಥಳ ಬೇಕು. "
+        "distance_stub": "ನಿಖರವಾದ ನಡಿಗೆ ದೂರ/ಸಮಯವನ್ನು ಇನ್ನೂ ೆಕ್ಕ ಹಾಕಲು ಸಾಧ್ಯವಿಲ್ಲ — ಅದಕ್ಕೆ ಮ್ಯಾಪ್ಸ್ ರೂಟಿಂಗ್ API ಮತ್ತು ನಿಮ್ಮ ಪ್ರಸ್ತುತ GPS ಸ್ಥಳ ಬೇಕು. "
                           "ಬದಲಿಗೆ \"how do I reach X\" ಎಂದು ಕೇಳಿದರೆ ಮುಖ್ಯ ಗೇಟಿನಿಂದ ದಿಕ್ಕನ್ನು ಹೇಳಬಲ್ಲೆ.",
         "nearest_stub": "ನಿಮಗೆ ಹತ್ತಿರವಿರುವ ಸೌಲಭ್ಯವನ್ನು ಕಂಡುಹಿಡಿಯಲು ನಿಮ್ಮ ಪ್ರಸ್ತುತ ಸ್ಥಳ ಬೇಕು, ಅದು ಈ ಬ್ಯಾಕೆಂಡ್‌ಗೆ ಇನ್ನೂ ಸಿಗುತ್ತಿಲ್ಲ. "
                         "ಈಗಿನಂತೆ, ನೀವು ಉದ್ದೇಶಿಸಿರುವ ನಿರ್ದಿಷ್ಟ ಸ್ಥಳವನ್ನು ಹೆಸರಿಸಿ (ಉದಾ. \"canteen\").",
@@ -720,7 +720,7 @@ T = {
         "label_chairperson": "ಮುಖ್ಯಸ್ಥರು",
         "label_as_of": "ಈ ದಿನಾಂಕದಂತೆ",
         "label_directions": "",
-        "unverified_warning": "ಅಧಿಕೃತ ವಿಶ್ವವಿದ್ಯಾಲಯ ಜಾಲತಾಣದಿಂದ ಸ್ವತಂತ್ರವಾಗಿ ದೃಢೀಕರಿಸಲಾಗಿಲ್ಲ — ಕೆಳಗಿನ ಟಿಪ್ಪಣಿ ನೋಡಿ.",
+        "unverified_warning": "ಅಧಿಕೃತ ವಿಶ್ವವಿದ್ಯಾಲಯ ಜಾಲತಾಣದಿಂದ ಸ್ವತಂತ್ರವಾಗಿ ದೃೀಕರಿಸಲಾಗಿಲ್ಲ — ಕೆಳಗಿನ ಟಿಪ್ಪಣಿ ನೋಡಿ.",
         "gps_missing": "ಈ ನಿರ್ದಿಷ್ಟ ಸ್ಥಳಕ್ಕೆ ನಿಖರ GPS ಇನ್ನೂ ಹೊಂದಿಸಿಲ್ಲ — ಕೆಳಗಿನ ಪಿನ್ ಸಾಮಾನ್ಯ ಕ್ಯಾಂಪಸ್ ಸ್ಥಳಕ್ಕೆ ಹೋಗುತ್ತದೆ.",
         "open_maps": "ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ",
         "open_campus_maps": "ಕ್ಯಾಂಪಸ್ಸನ್ನು ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ",
@@ -776,7 +776,7 @@ def format_entry(key, lang="en"):
     if not data.get("verified", True):
         lines.append(f"⚠️ _{tr('unverified_warning', lang)}_")
 
-    lines.append(f"📍 {data['location']}")
+    lines.append(f" {data['location']}")
 
     if "directions" in data:
         lines.append(f"🚶 {data['directions']}")
@@ -790,7 +790,7 @@ def format_entry(key, lang="en"):
         lines.append(cp_line)
 
     if "contact" in data:
-        lines.append(f"📞 {data['contact']}")
+        lines.append(f" {data['contact']}")
 
     if "timings" in data:
         lines.append(f"🕒 {data['timings']}")
@@ -802,7 +802,7 @@ def format_entry(key, lang="en"):
         lines.append("**Departments here:** " + ", ".join(data["departments_here"]))
 
     if data.get("note"):
-        lines.append(f"ℹ️ {data['note']}")
+        lines.append(f"️ {data['note']}")
 
     lines.append(_navigation_block(data, lang))
 
@@ -982,7 +982,7 @@ def chat(request: ChatRequest):
         ai_key = ai_identify_entity(query)
         if ai_key:
             answer = format_entry(ai_key, lang)
-            prefix = "🤖 _AI-matched — verify this is what you meant:_\n\n" if lang != "kn" \
+            prefix = " _AI-matched — verify this is what you meant:_\n\n" if lang != "kn" \
                      else "🤖 _AI ಹೊಂದಾಣಿಕೆ — ಇದು ಸರಿಯೇ ಎಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ:_\n\n"
             return {"intent": intent, "answer": prefix + answer}
         return {"intent": intent, "answer": tr("no_match", lang)}
@@ -993,8 +993,3 @@ def chat(request: ChatRequest):
         prefix = "🤖 _AI-matched — verify this is what you meant:_\n\n" if lang != "kn" \
                  else "🤖 _AI ಹೊಂದಾಣಿಕೆ — ಇದು ಸರಿಯೇ ಎಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ:_\n\n"
         return {"intent": "Get_Info", "answer": prefix + answer}
-<<<<<<< HEAD
-(your local code)
-=======
-(remote code from GitHub)
->>>>>>> FETCH_HEAD
