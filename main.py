@@ -993,5 +993,8 @@ def chat(request: ChatRequest):
         prefix = "🤖 _AI-matched — verify this is what you meant:_\n\n" if lang != "kn" \
                  else "🤖 _AI ಹೊಂದಾಣಿಕೆ — ಇದು ಸರಿಯೇ ಎಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ:_\n\n"
         return {"intent": "Get_Info", "answer": prefix + answer}
-
-    return {"intent": "FAQ", "answer": tr("faq_fallback", lang)}
+<<<<<<< HEAD
+(your local code)
+=======
+(remote code from GitHub)
+>>>>>>> FETCH_HEAD
