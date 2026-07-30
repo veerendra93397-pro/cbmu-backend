@@ -1,8 +1,73 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import difflib
 import re
+import os
+import math
+import requests
+
+# ============================================================
+#  GEMINI (Google AI) — optional NLP fallback
+#
+#  Used ONLY to match a free-form question to one of the known keys in
+#  CAMPUS_DATA when the rule-based keyword matcher finds nothing. It is
+#  deliberately NOT used to answer questions from its own knowledge —
+#  every actual fact (names, phone numbers, fees) still comes from
+#  CAMPUS_DATA / COURSE_FEES, never from the model's own output. This
+#  keeps real people's names/numbers from ever being hallucinated.
+#
+#  Set the GEMINI_API_KEY environment variable (e.g. in Render's
+#  dashboard under Environment) — never hardcode the key in this file.
+#  If the key isn't set, this feature silently disables itself and the
+#  bot falls back to the old "I didn't understand that" message.
+# ============================================================
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_AVAILABLE = False
+
+if GEMINI_API_KEY:
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=GEMINI_API_KEY)
+        _gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        GEMINI_AVAILABLE = True
+    except Exception:
+        GEMINI_AVAILABLE = False
+
+def ai_identify_entity(query: str):
+    """Ask Gemini to pick the single best-matching CAMPUS_DATA key for a
+    free-form question the keyword matcher couldn't handle. Returns the
+    matched key (a string that MUST already exist in CAMPUS_DATA) or None.
+    Never returns freeform text as a fact — only a key we then look up
+    ourselves."""
+    if not GEMINI_AVAILABLE:
+        return None
+    try:
+        topic_list = "\n".join(f"- {key}" for key in CAMPUS_DATA.keys())
+        prompt = (
+            "You are an intent-matching layer for a university chatbot. "
+            "Below is a list of valid internal topic keys. Given the student's "
+            "question, reply with EXACTLY ONE key from the list that best matches "
+            "what they're asking about — nothing else, no explanation, no punctuation. "
+            "If nothing in the list matches, reply with exactly: NONE\n\n"
+            f"Valid keys:\n{topic_list}\n\n"
+            f"Student question: \"{query}\"\n\n"
+            "Answer:"
+        )
+        response = _gemini_model.generate_content(
+            prompt,
+            generation_config={"temperature": 0, "max_output_tokens": 20},
+        )
+        candidate = (response.text or "").strip().strip('"').strip("'").lower()
+        if candidate in CAMPUS_DATA:
+            return candidate
+        return None
+    except Exception:
+        # Any Gemini/network failure just falls back to the normal flow —
+        # never let an AI-layer error break the chatbot response.
+        return None
 
 app = FastAPI(title="Mangalore University Assistant API")
 
@@ -16,6 +81,8 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     lang: str = "en"  # "en" or "kn" — Flutter app sends this based on the user's toggle
+    lat: Optional[float] = None  # user's live GPS latitude, if the app has location permission
+    lng: Optional[float] = None  # user's live GPS longitude
 
 # ============================================================
 #  A NOTE ON WHAT'S REAL VS. PLACEHOLDER IN THIS FILE
@@ -56,6 +123,33 @@ def location_marker(lat, lng):
     # Matches the __LOCATION__:lat,lng pattern the Flutter app's regex looks
     # for — this is what actually drives the "Open in Google Maps" button.
     return f"__LOCATION__:{lat},{lng}"
+
+# ============================================================
+#  GPS / DISTANCE
+#
+#  This gives straight-line ("as the crow flies") distance, not a walking
+#  route — real turn-by-turn routing needs the Google Directions API
+#  (separate key + billing). Straight-line distance is free and doesn't
+#  need any extra API, and is close enough for "how far am I" on a small
+#  campus. Precision is also capped by the fact that most CAMPUS_DATA
+#  entries don't have their own lat/lng yet (see the note near the top
+#  of this file) — until those are filled in, "nearest building" falls
+#  back to distance-to-campus-center rather than per-building distance.
+# ============================================================
+
+def haversine_km(lat1, lng1, lat2, lng2):
+    """Great-circle distance between two GPS points, in kilometres."""
+    R = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+def format_km(km):
+    if km < 1:
+        return f"{km * 1000:.0f} m"
+    return f"{km:.1f} km"
 
 COURSE_FEES = {
     "mca": {
@@ -821,10 +915,52 @@ def chat(request: ChatRequest):
         return {"intent": intent, "answer": tr("directions_which", lang)}
 
     if intent == "Get_Distance":
-        return {"intent": intent, "answer": tr("distance_stub", lang)}
+        if request.lat is None or request.lng is None:
+            return {"intent": intent, "answer": tr("distance_need_gps", lang)}
+        if entry_key:
+            data = CAMPUS_DATA[entry_key]
+            target_lat, target_lng = data.get("lat"), data.get("lng")
+            approx = target_lat is None or target_lng is None
+            if approx:
+                target_lat, target_lng = CAMPUS_CENTER_LAT, CAMPUS_CENTER_LNG
+            dist = haversine_km(request.lat, request.lng, target_lat, target_lng)
+            display_name = data.get("name_kn") if lang == "kn" and data.get("name_kn") else data["name"]
+            answer = tr("distance_result", lang, name=display_name, dist=format_km(dist))
+            if approx:
+                answer += "\n" + tr("distance_approx_note", lang)
+            return {"intent": intent, "answer": answer}
+        return {"intent": intent, "answer": tr("directions_which", lang)}
 
     if intent == "Find_Nearest":
-        return {"intent": intent, "answer": tr("nearest_stub", lang)}
+        if request.lat is None or request.lng is None:
+            return {"intent": intent, "answer": tr("nearest_need_gps", lang)}
+        if entry_key:
+            # User named a category (e.g. "nearest canteen") — just report
+            # on that specific entry, same as Get_Distance.
+            data = CAMPUS_DATA[entry_key]
+            target_lat, target_lng = data.get("lat"), data.get("lng")
+            approx = target_lat is None or target_lng is None
+            if approx:
+                target_lat, target_lng = CAMPUS_CENTER_LAT, CAMPUS_CENTER_LNG
+            dist = haversine_km(request.lat, request.lng, target_lat, target_lng)
+            display_name = data.get("name_kn") if lang == "kn" and data.get("name_kn") else data["name"]
+            answer = tr("distance_result", lang, name=display_name, dist=format_km(dist))
+            if approx:
+                answer += "\n" + tr("distance_approx_note", lang)
+            answer += "\n" + _navigation_block(data, lang)
+            return {"intent": intent, "answer": answer}
+        # No category named — rank every entry that has its OWN real lat/lng.
+        pinned = [(k, v) for k, v in CAMPUS_DATA.items() if v.get("lat") is not None and v.get("lng") is not None]
+        if not pinned:
+            return {"intent": intent, "answer": tr("nearest_no_pins", lang)}
+        ranked = sorted(pinned, key=lambda kv: haversine_km(request.lat, request.lng, kv[1]["lat"], kv[1]["lng"]))
+        top = ranked[:3]
+        lines = [tr("nearest_header", lang)]
+        for key, data in top:
+            dist = haversine_km(request.lat, request.lng, data["lat"], data["lng"])
+            display_name = data.get("name_kn") if lang == "kn" and data.get("name_kn") else data["name"]
+            lines.append(f"• {display_name} — {format_km(dist)}")
+        return {"intent": intent, "answer": "\n".join(lines)}
 
     if intent == "Get_Timings":
         if entry_key and "timings" in CAMPUS_DATA[entry_key]:
@@ -843,6 +979,19 @@ def chat(request: ChatRequest):
             return {"intent": intent, "answer": f"{tr('list_all_header', lang)}\n\n{names}"}
         if entry_key:
             return {"intent": intent, "answer": format_entry(entry_key, lang)}
+        ai_key = ai_identify_entity(query)
+        if ai_key:
+            answer = format_entry(ai_key, lang)
+            prefix = "🤖 _AI-matched — verify this is what you meant:_\n\n" if lang != "kn" \
+                     else "🤖 _AI ಹೊಂದಾಣಿಕೆ — ಇದು ಸರಿಯೇ ಎಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ:_\n\n"
+            return {"intent": intent, "answer": prefix + answer}
         return {"intent": intent, "answer": tr("no_match", lang)}
+
+    ai_key = ai_identify_entity(query)
+    if ai_key:
+        answer = format_entry(ai_key, lang)
+        prefix = "🤖 _AI-matched — verify this is what you meant:_\n\n" if lang != "kn" \
+                 else "🤖 _AI ಹೊಂದಾಣಿಕೆ — ಇದು ಸರಿಯೇ ಎಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ:_\n\n"
+        return {"intent": "Get_Info", "answer": prefix + answer}
 
     return {"intent": "FAQ", "answer": tr("faq_fallback", lang)}
