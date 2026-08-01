@@ -840,38 +840,47 @@ TIMING_WORDS = ["timing", "timings", "hours", "open now", "close", "when does", 
 CLARIFICATION_WORDS = ["i don't know the name", "i dont know the name", "i forgot the building name",
                         "help me find", "i need directions", "i don't know", "i dont know"]
 
+def _has_word(word, text):
+    """Whole-word/phrase match instead of naive substring containment —
+    fixes bugs like 'hi' falsely matching inside 'cahirman' (a typo of
+    'chairman'), which used to hijack the Greeting intent."""
+    return re.search(r'(?<!\w)' + re.escape(word) + r'(?!\w)', text) is not None
+
 def classify_intent(query):
     q = clean_text(query)
 
-    if any(w in q for w in GOODBYE_WORDS):
+    if any(_has_word(w, q) for w in GOODBYE_WORDS):
         return "Goodbye"
-    if any(w in q for w in GREETING_WORDS):
+    if any(_has_word(w, q) for w in GREETING_WORDS):
         return "Greeting"
-    if any(w in q for w in CLARIFICATION_WORDS):
+    if any(_has_word(w, q) for w in CLARIFICATION_WORDS):
         return "Clarification"
-    if any(w in q for w in DIRECTION_WORDS):
+    if any(_has_word(w, q) for w in DIRECTION_WORDS):
         return "Get_Directions"
-    if any(w in q for w in DISTANCE_WORDS):
+    if any(_has_word(w, q) for w in DISTANCE_WORDS):
         return "Get_Distance"
-    if any(w in q for w in NEAREST_WORDS):
+    if any(_has_word(w, q) for w in NEAREST_WORDS):
         return "Find_Nearest"
-    if any(w in q for w in TIMING_WORDS):
+    if any(_has_word(w, q) for w in TIMING_WORDS):
         return "Get_Timings"
-    if any(w in q for w in ["fee", "fees", "tuition", "payment"]):
+    if any(_has_word(w, q) for w in ["fee", "fees", "tuition", "payment"]):
         return "Get_Info"  # fee questions are a subtype of Get_Info
-    if any(w in q for w in ["course", "hod", "chairperson", "who is", "which department",
+    if any(_has_word(w, q) for w in ["course", "hod", "chairperson", "who is", "which department",
                               "which block", "what facilities"]):
         return "Get_Info"
-    if "where is" in q or "where can i" in q or "where" in q:
+    if _has_word("where is", q) or _has_word("where can i", q) or _has_word("where", q):
         return "Find_Location"
-    if "show all" in q or "list all" in q or "show academic" in q:
+    if _has_word("show all", q) or _has_word("list all", q) or _has_word("show academic", q):
         return "Get_Info"
 
     # If nothing matched but an entity IS recognizable, still treat as location.
     if find_best_match(q):
         return "Find_Location"
 
-    return "Clarification"
+    # Genuinely unmatched (often a typo, like "cahirman") — route to Get_Info
+    # so the Gemini fallback gets a real shot at it, instead of defaulting
+    # straight to "Clarification" and never trying the AI layer.
+    return "Get_Info"
 
 @app.get("/")
 def root():
