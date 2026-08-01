@@ -633,6 +633,58 @@ def clean_text(text):
     return re.sub(r'[^\w\s]', '', text.lower().strip())
 
 # ============================================================
+#  SPELL CORRECTION
+#
+#  Builds a vocabulary from every alias/name/keyword already in the
+#  system, then corrects individual mistyped words against it before
+#  matching. This generalizes past the "chairman" bug fix — it now
+#  catches typos in ANY word (e.g. "regsitrar", "hostl", "kannda"),
+#  not just ones we've hardcoded as aliases. Runs BEFORE the exact/
+#  alias matcher, so correct spellings are untouched and fast; it only
+#  kicks in for words that don't already match something.
+# ============================================================
+
+_INTENT_KEYWORDS = [
+    "hi", "hello", "hey", "help", "bye", "goodbye", "thanks", "thank",
+    "nearest", "closest", "distance", "timing", "timings", "hours",
+    "fee", "fees", "tuition", "chairperson", "hod", "department",
+    "directions", "direction", "where", "who", "contact", "phone",
+]
+
+def _build_vocabulary():
+    vocab = set()
+    for data in CAMPUS_DATA.values():
+        for alias in data.get("aliases", []):
+            for word in alias.split():
+                if len(word) > 3:  # skip tiny words like "of", "is" — too risky to auto-correct
+                    vocab.add(word)
+        for word in data.get("name", "").lower().split():
+            word = re.sub(r'[^\w]', '', word)
+            if len(word) > 3:
+                vocab.add(word)
+    vocab.update(_INTENT_KEYWORDS)
+    return vocab
+
+_VOCABULARY = None  # built lazily, after CAMPUS_DATA is defined below
+
+def spell_correct(text):
+    """Fix individual mistyped words against the known vocabulary.
+    Leaves already-correct words and short/common words untouched."""
+    global _VOCABULARY
+    if _VOCABULARY is None:
+        _VOCABULARY = _build_vocabulary()
+
+    words = text.split()
+    corrected = []
+    for word in words:
+        if word in _VOCABULARY or len(word) <= 3:
+            corrected.append(word)
+            continue
+        match = difflib.get_close_matches(word, _VOCABULARY, n=1, cutoff=0.78)
+        corrected.append(match[0] if match else word)
+    return " ".join(corrected)
+
+# ============================================================
 #  TRANSLATIONS
 #
 #  Only the bot's OWN wording is translated (labels, prompts, canned
@@ -888,8 +940,9 @@ def root():
 
 @app.post("/chat")
 def chat(request: ChatRequest):
-    query = request.message.lower().strip()
     lang = request.lang if request.lang in T else "en"
+    raw_query = request.message.lower().strip()
+    query = spell_correct(clean_text(raw_query))
     intent = classify_intent(query)
 
     if intent == "Greeting":
