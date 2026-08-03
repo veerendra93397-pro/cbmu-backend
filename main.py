@@ -27,6 +27,12 @@ import requests
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_AVAILABLE = False
 
+# Off by default — turning this on means EVERY matched answer makes an
+# extra Gemini call (more quota/latency) to rephrase the templated text
+# into natural conversational language. Set AI_REPHRASE=true in Render's
+# Environment tab once you're happy with quota usage to turn it on.
+AI_REPHRASE_ENABLED = os.environ.get("AI_REPHRASE", "false").lower() == "true"
+
 if GEMINI_API_KEY:
     try:
         import google.generativeai as genai
@@ -68,6 +74,86 @@ def ai_identify_entity(query: str):
         # Any Gemini/network failure just falls back to the normal flow —
         # never let an AI-layer error break the chatbot response.
         return None
+
+def ai_conversational_reply(query: str, lang: str):
+    """For genuine small talk / vague chat that doesn't match any known
+    topic (e.g. 'haa', 'how is mu university', 'you there?') — gives a
+    warm, natural reply instead of the robotic 'I couldn't match that'
+    message. Deliberately instructed to NEVER state specific facts, names,
+    numbers, or dates about the university — only CAMPUS_DATA/COURSE_FEES
+    are trusted for those. This call is just for tone, not information."""
+    if not GEMINI_AVAILABLE:
+        return None
+    try:
+        lang_name = "Kannada" if lang == "kn" else "English"
+        prompt = (
+            "You are a warm, friendly chatbot assistant for Mangalore University students. "
+            "The student just sent a casual or vague message that doesn't match any specific "
+            "topic in your database (departments, offices, fees, hostels, timings, etc.). "
+            f"Reply warmly and briefly (1-2 short sentences) in {lang_name}. "
+            "IMPORTANT: Do NOT state any specific facts, names, phone numbers, dates, or figures "
+            "about the university — you have no verified data for this message, so making any "
+            "up would be wrong. Just be friendly, and gently invite them to ask about a "
+            "department, office, hostel, fees, or timings instead.\n\n"
+            f"Student message: \"{query}\"\n\n"
+            "Your reply:"
+        )
+        response = _gemini_model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.6, "max_output_tokens": 80},
+        )
+        text = (response.text or "").strip()
+        return text if text else None
+    except Exception:
+        return None
+
+def ai_rephrase(structured_text: str, query: str, lang: str):
+    """Rewrites an already-verified structured answer into warmer,
+    conversational language — WITHOUT changing any fact. This is what
+    makes responses feel like a real AI chat instead of a rigid template,
+    while keeping every name/number/link exactly as verified.
+
+    Guarded by AI_REPHRASE_ENABLED so it's opt-in (extra Gemini call per
+    matched answer = more quota/latency). If disabled, unavailable, or
+    the model does anything suspicious (drops a link, changes length
+    drastically), falls back to the original structured text untouched —
+    never risk a fact getting silently altered."""
+    if not AI_REPHRASE_ENABLED or not GEMINI_AVAILABLE:
+        return structured_text
+    try:
+        lang_name = "Kannada" if lang == "kn" else "English"
+        prompt = (
+            "You are a friendly university chatbot. Below is VERIFIED factual data that has "
+            "already been retrieved for the student's question — treat every name, number, "
+            "phone number, date, and link in it as ground truth.\n\n"
+            "Rewrite it as a warm, natural, conversational reply in "
+            f"{lang_name}, as if a helpful person were answering. STRICT RULES:\n"
+            "1. Do NOT add, remove, or alter any fact — every name, phone number, date, "
+            "figure, and URL must appear EXACTLY as given, unchanged.\n"
+            "2. Do NOT invent any additional information not present below.\n"
+            "3. You MAY reorder sentences, soften the tone, and add natural transitions.\n"
+            "4. Keep any markdown links in the exact same [text](url) format.\n"
+            "5. Keep it roughly the same length — don't pad or over-explain.\n\n"
+            f"Student's question: \"{query}\"\n\n"
+            f"Verified data:\n{structured_text}\n\n"
+            "Your conversational rewrite:"
+        )
+        response = _gemini_model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.4, "max_output_tokens": 400},
+        )
+        rewritten = (response.text or "").strip()
+
+        # Safety check: every URL in the original MUST survive verbatim in
+        # the rewrite, or we discard the rewrite and use the safe original.
+        urls_in_original = re.findall(r'https?://\S+?(?=\)|\s|$)', structured_text)
+        if any(url not in rewritten for url in urls_in_original):
+            return structured_text
+        if not rewritten:
+            return structured_text
+        return rewritten
+    except Exception:
+        return structured_text
 
 app = FastAPI(title="Mangalore University Assistant API")
 
@@ -1040,13 +1126,16 @@ def chat(request: ChatRequest):
                 names = ", ".join(v["name"] for v in CAMPUS_DATA.values())
             return {"intent": intent, "answer": f"{tr('list_all_header', lang)}\n\n{names}"}
         if entry_key:
-            return {"intent": intent, "answer": format_entry(entry_key, lang)}
+            return {"intent": intent, "answer": ai_rephrase(format_entry(entry_key, lang), query, lang)}
         ai_key = ai_identify_entity(query)
         if ai_key:
             answer = format_entry(ai_key, lang)
             prefix = "🤖 _AI-matched — verify this is what you meant:_\n\n" if lang != "kn" \
                      else "🤖 _AI ಹೊಂದಾಣಿಕೆ — ಇದು ಸರಿಯೇ ಎಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ:_\n\n"
             return {"intent": intent, "answer": prefix + answer}
+        chat_reply = ai_conversational_reply(query, lang)
+        if chat_reply:
+            return {"intent": "Smalltalk", "answer": chat_reply}
         return {"intent": intent, "answer": tr("no_match", lang)}
 
     ai_key = ai_identify_entity(query)
@@ -1055,5 +1144,9 @@ def chat(request: ChatRequest):
         prefix = "🤖 _AI-matched — verify this is what you meant:_\n\n" if lang != "kn" \
                  else "🤖 _AI ಹೊಂದಾಣಿಕೆ — ಇದು ಸರಿಯೇ ಎಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ:_\n\n"
         return {"intent": "Get_Info", "answer": prefix + answer}
+
+    chat_reply = ai_conversational_reply(query, lang)
+    if chat_reply:
+        return {"intent": "Smalltalk", "answer": chat_reply}
 
     return {"intent": "FAQ", "answer": tr("faq_fallback", lang)}
