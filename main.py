@@ -37,7 +37,11 @@ if GEMINI_API_KEY:
     try:
         import google.generativeai as genai
         genai.configure(api_key=GEMINI_API_KEY)
-        _gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        # NOTE: model names change over time as Google deprecates old ones.
+        # gemini-1.5-flash was fully shut down — if this one ever stops
+        # working too, check https://ai.google.dev/gemini-api/docs/models
+        # for the current recommended lightweight model and update this string.
+        _gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
         GEMINI_AVAILABLE = True
     except Exception:
         GEMINI_AVAILABLE = False
