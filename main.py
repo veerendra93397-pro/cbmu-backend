@@ -24,8 +24,31 @@ import requests
 #  bot falls back to the old "I didn't understand that" message.
 # ============================================================
 
+# ============================================================
+#  GEMINI (Google AI) — optional NLP fallback
+#
+#  Used ONLY to match a free-form question to one of the known keys in
+#  CAMPUS_DATA when the rule-based keyword matcher finds nothing. It is
+#  deliberately NOT used to answer questions from its own knowledge —
+#  every actual fact (names, phone numbers, fees) still comes from
+#  CAMPUS_DATA / COURSE_FEES, never from the model's own output. This
+#  keeps real people's names/numbers from ever being hallucinated.
+#
+#  Set the GEMINI_API_KEY environment variable (e.g. in Render's
+#  dashboard under Environment) — never hardcode the key in this file.
+#  If the key isn't set, this feature silently disables itself and the
+#  bot falls back to the old "I didn't understand that" message.
+#
+#  Uses the `google-genai` package (NOT the older `google-generativeai`,
+#  which reached end-of-life Nov 30, 2025 and no longer works reliably).
+#  Make sure requirements.txt has `google-genai`, not `google-generativeai`.
+# ============================================================
+
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_AVAILABLE = False
+GEMINI_INIT_ERROR = None     # set if setup itself fails (bad import, etc.)
+GEMINI_LAST_CALL_ERROR = None  # set if the most recent actual API call failed
+GEMINI_MODEL = "gemini-2.5-flash-lite"  # check https://ai.google.dev/gemini-api/docs/models if this ever needs updating
 
 # Off by default — turning this on means EVERY matched answer makes an
 # extra Gemini call (more quota/latency) to rephrase the templated text
@@ -35,16 +58,15 @@ AI_REPHRASE_ENABLED = os.environ.get("AI_REPHRASE", "false").lower() == "true"
 
 if GEMINI_API_KEY:
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        # NOTE: model names change over time as Google deprecates old ones.
-        # gemini-1.5-flash was fully shut down — if this one ever stops
-        # working too, check https://ai.google.dev/gemini-api/docs/models
-        # for the current recommended lightweight model and update this string.
-        _gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        from google import genai
+        from google.genai import types as genai_types
+        _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
         GEMINI_AVAILABLE = True
-    except Exception:
+    except Exception as e:
         GEMINI_AVAILABLE = False
+        GEMINI_INIT_ERROR = f"{type(e).__name__}: {e}"
+else:
+    GEMINI_INIT_ERROR = "GEMINI_API_KEY environment variable is not set"
 
 def ai_identify_entity(query: str):
     """Ask Gemini to pick the single best-matching CAMPUS_DATA key for a
@@ -66,17 +88,23 @@ def ai_identify_entity(query: str):
             f"Student question: \"{query}\"\n\n"
             "Answer:"
         )
-        response = _gemini_model.generate_content(
-            prompt,
-            generation_config={"temperature": 0, "max_output_tokens": 20},
+        response = _gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                temperature=0, max_output_tokens=20,
+            ),
         )
         candidate = (response.text or "").strip().strip('"').strip("'").lower()
         if candidate in CAMPUS_DATA:
             return candidate
         return None
-    except Exception:
+    except Exception as e:
         # Any Gemini/network failure just falls back to the normal flow —
-        # never let an AI-layer error break the chatbot response.
+        # never let an AI-layer error break the chatbot response — but
+        # DO remember what happened so /debug/gemini can show it.
+        global GEMINI_LAST_CALL_ERROR
+        GEMINI_LAST_CALL_ERROR = f"{type(e).__name__}: {e}"
         return None
 
 def ai_conversational_reply(query: str, lang: str):
@@ -102,13 +130,18 @@ def ai_conversational_reply(query: str, lang: str):
             f"Student message: \"{query}\"\n\n"
             "Your reply:"
         )
-        response = _gemini_model.generate_content(
-            prompt,
-            generation_config={"temperature": 0.6, "max_output_tokens": 80},
+        response = _gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                temperature=0.6, max_output_tokens=80,
+            ),
         )
         text = (response.text or "").strip()
         return text if text else None
-    except Exception:
+    except Exception as e:
+        global GEMINI_LAST_CALL_ERROR
+        GEMINI_LAST_CALL_ERROR = f"{type(e).__name__}: {e}"
         return None
 
 def ai_rephrase(structured_text: str, query: str, lang: str):
@@ -142,9 +175,12 @@ def ai_rephrase(structured_text: str, query: str, lang: str):
             f"Verified data:\n{structured_text}\n\n"
             "Your conversational rewrite:"
         )
-        response = _gemini_model.generate_content(
-            prompt,
-            generation_config={"temperature": 0.4, "max_output_tokens": 400},
+        response = _gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                temperature=0.4, max_output_tokens=400,
+            ),
         )
         rewritten = (response.text or "").strip()
 
@@ -156,7 +192,9 @@ def ai_rephrase(structured_text: str, query: str, lang: str):
         if not rewritten:
             return structured_text
         return rewritten
-    except Exception:
+    except Exception as e:
+        global GEMINI_LAST_CALL_ERROR
+        GEMINI_LAST_CALL_ERROR = f"{type(e).__name__}: {e}"
         return structured_text
 
 app = FastAPI(title="Mangalore University Assistant API")
@@ -1027,6 +1065,26 @@ def classify_intent(query):
 @app.get("/")
 def root():
     return {"message": "Mangalore University Assistant API is LIVE! 🚀"}
+
+@app.get("/debug/gemini")
+def debug_gemini():
+    """Temporary diagnostic endpoint — visit this URL directly in a browser
+    to see exactly why the Gemini layer is/isn't working, without exposing
+    the actual API key. Remove this endpoint once everything's confirmed
+    working, since it's unauthenticated and shouldn't stay in production
+    long-term."""
+    key_hint = None
+    if GEMINI_API_KEY:
+        key_hint = f"{GEMINI_API_KEY[:4]}...{GEMINI_API_KEY[-4:]} (len={len(GEMINI_API_KEY)})"
+    return {
+        "gemini_available": GEMINI_AVAILABLE,
+        "api_key_present": bool(GEMINI_API_KEY),
+        "api_key_hint": key_hint,
+        "model": GEMINI_MODEL,
+        "init_error": GEMINI_INIT_ERROR,
+        "last_call_error": GEMINI_LAST_CALL_ERROR,
+        "ai_rephrase_enabled": AI_REPHRASE_ENABLED,
+    }
 
 @app.post("/chat")
 def chat(request: ChatRequest):
