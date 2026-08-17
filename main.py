@@ -240,6 +240,9 @@ class ChatRequest(BaseModel):
     lang: str = "en"  # "en" or "kn" — Flutter app sends this based on the user's toggle
     lat: Optional[float] = None  # user's live GPS latitude, if the app has location permission
     lng: Optional[float] = None  # user's live GPS longitude
+    debug: bool = False  # if true, /chat includes Gemini call details in THIS response
+    # (avoids relying on cross-request global state, which may not be
+    # shared correctly if Render is running multiple worker processes)
 
 # ============================================================
 #  A NOTE ON WHAT'S REAL VS. PLACEHOLDER IN THIS FILE
@@ -1118,6 +1121,22 @@ def debug_gemini():
 
 @app.post("/chat")
 def chat(request: ChatRequest):
+    global GEMINI_LAST_TRACE, GEMINI_LAST_CALL_ERROR
+    GEMINI_LAST_TRACE = {}
+    GEMINI_LAST_CALL_ERROR = None
+
+    result = _chat_logic(request)
+
+    if request.debug:
+        result["debug"] = {
+            "gemini_available": GEMINI_AVAILABLE,
+            "gemini_init_error": GEMINI_INIT_ERROR,
+            "last_call_error": GEMINI_LAST_CALL_ERROR,
+            "last_call_trace": GEMINI_LAST_TRACE,
+        }
+    return result
+
+def _chat_logic(request: ChatRequest):
     lang = request.lang if request.lang in T else "en"
     raw_query = request.message.lower().strip()
     query = spell_correct(clean_text(raw_query))
