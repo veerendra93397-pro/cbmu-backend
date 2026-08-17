@@ -49,7 +49,7 @@ GEMINI_AVAILABLE = False
 GEMINI_INIT_ERROR = None     # set if setup itself fails (bad import, etc.)
 GEMINI_LAST_CALL_ERROR = None  # set if the most recent actual API call failed
 GEMINI_LAST_TRACE = {}  # detailed record of the most recent call, for /debug/gemini
-GEMINI_MODEL = "gemini-2.5-flash-lite"  # check https://ai.google.dev/gemini-api/docs/models if this ever needs updating
+GEMINI_MODEL = "gemini-3.5-flash-lite"  # check https://ai.google.dev/gemini-api/docs/models if this ever needs updating
 
 # Off by default — turning this on means EVERY matched answer makes an
 # extra Gemini call (more quota/latency) to rephrase the templated text
