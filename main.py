@@ -726,6 +726,12 @@ CAMPUS_DATA = {
         "verified": False,
         "lat": None,  # <-- fill this in first; every other "directions" entry is relative to this point
         "lng": None,
+        # Real, verified photo (CC-BY-SA-3.0) — the ONE genuine building
+        # photo in this dataset so far. Everything else below has no
+        # image_url because no verified specific photo was found for it —
+        # see the note in image_attribution for how to add more.
+        "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Entrance_of_Mangalore_University_in_Konaje.jpg",
+        "image_attribution": "Photo: Msclrfl22, CC BY-SA 3.0, via Wikimedia Commons",
         "note": "Every direction in this bot should be relative to this point — get its real GPS pin first, "
                 "since all other 'directions' entries depend on it.",
     },
@@ -984,6 +990,11 @@ def format_entry(key, lang="en"):
     data = CAMPUS_DATA[key]
     display_name = data.get("name_kn") if lang == "kn" and data.get("name_kn") else data['name']
     lines = [f"**{display_name}**"]
+
+    if data.get("image_url"):
+        # Parsed and stripped by the Flutter app's message renderer —
+        # format: __IMAGE__:<url>|<attribution text>
+        lines.append(f"__IMAGE__:{data['image_url']}|{data.get('image_attribution', '')}")
 
     if not data.get("verified", True):
         lines.append(f"⚠️ _{tr('unverified_warning', lang)}_")
