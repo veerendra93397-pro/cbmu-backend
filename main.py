@@ -48,6 +48,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_AVAILABLE = False
 GEMINI_INIT_ERROR = None     # set if setup itself fails (bad import, etc.)
 GEMINI_LAST_CALL_ERROR = None  # set if the most recent actual API call failed
+GEMINI_LAST_TRACE = {}  # detailed record of the most recent call, for /debug/gemini
 GEMINI_MODEL = "gemini-2.5-flash-lite"  # check https://ai.google.dev/gemini-api/docs/models if this ever needs updating
 
 # Off by default — turning this on means EVERY matched answer makes an
@@ -67,6 +68,18 @@ if GEMINI_API_KEY:
         GEMINI_INIT_ERROR = f"{type(e).__name__}: {e}"
 else:
     GEMINI_INIT_ERROR = "GEMINI_API_KEY environment variable is not set"
+
+def _safe_finish_reason(response):
+    try:
+        return str(response.candidates[0].finish_reason)
+    except Exception:
+        return None
+
+def _safe_prompt_feedback(response):
+    try:
+        return str(response.prompt_feedback)
+    except Exception:
+        return None
 
 def ai_identify_entity(query: str):
     """Ask Gemini to pick the single best-matching CAMPUS_DATA key for a
@@ -95,6 +108,14 @@ def ai_identify_entity(query: str):
                 temperature=0, max_output_tokens=20,
             ),
         )
+        global GEMINI_LAST_TRACE
+        GEMINI_LAST_TRACE = {
+            "function": "ai_identify_entity",
+            "query": query,
+            "raw_text": response.text,
+            "finish_reason": _safe_finish_reason(response),
+            "prompt_feedback": _safe_prompt_feedback(response),
+        }
         candidate = (response.text or "").strip().strip('"').strip("'").lower()
         if candidate in CAMPUS_DATA:
             return candidate
@@ -137,6 +158,14 @@ def ai_conversational_reply(query: str, lang: str):
                 temperature=0.6, max_output_tokens=80,
             ),
         )
+        global GEMINI_LAST_TRACE
+        GEMINI_LAST_TRACE = {
+            "function": "ai_conversational_reply",
+            "query": query,
+            "raw_text": response.text,
+            "finish_reason": _safe_finish_reason(response),
+            "prompt_feedback": _safe_prompt_feedback(response),
+        }
         text = (response.text or "").strip()
         return text if text else None
     except Exception as e:
@@ -1083,6 +1112,7 @@ def debug_gemini():
         "model": GEMINI_MODEL,
         "init_error": GEMINI_INIT_ERROR,
         "last_call_error": GEMINI_LAST_CALL_ERROR,
+        "last_call_trace": GEMINI_LAST_TRACE,
         "ai_rephrase_enabled": AI_REPHRASE_ENABLED,
     }
 
