@@ -1,12 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 import difflib
 import re
 import os
 import math
 import requests
+import copy
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 # ============================================================
 #  GEMINI (Google AI) — optional NLP fallback
@@ -795,6 +797,148 @@ CAMPUS_DATA = {
     },
 }
 
+# Keep an untouched copy of the original hardcoded data. If Supabase is
+# unreachable/unconfigured, the app still runs perfectly using this —
+# admin edits just won't persist across restarts until the DB is set up.
+_CAMPUS_DATA_DEFAULTS = copy.deepcopy(CAMPUS_DATA)
+
+# ============================================================
+#  ADMIN LOGIN + LIVE DATA EDITING
+#
+#  Lets an admin log in with a single shared password (simple by design —
+#  this is a small student-project admin panel, not a multi-user system)
+#  and edit department/office fields (chairperson, contact, fee notes,
+#  etc.) directly from the app. Changes are:
+#    1. Applied to CAMPUS_DATA in memory immediately (chat answers reflect
+#       it right away, no redeploy needed)
+#    2. Saved to Supabase (a free Postgres database) so they SURVIVE a
+#       redeploy or restart — Render's own filesystem is wiped on every
+#       deploy, so without an external database, "admin edits" would
+#       silently vanish the next time the service restarts.
+#
+#  Required environment variables (set in Render's Environment tab):
+#    ADMIN_PASSWORD   - the password admins log in with
+#    ADMIN_SECRET     - random string used to sign login tokens (any long
+#                       random string — e.g. generate one at
+#                       https://randomkeygen.com and never share it)
+#    SUPABASE_URL     - e.g. https://xxxxx.supabase.co
+#    SUPABASE_SERVICE_KEY - the "service_role" key from Supabase's API
+#                       settings (NOT the anon key — service_role bypasses
+#                       row-level security so the backend can write; NEVER
+#                       put this key in the Flutter app, only here)
+#
+#  Supabase one-time setup (free tier):
+#    1. Create a project at supabase.com
+#    2. SQL Editor → run:
+#         create table campus_data (
+#           key text primary key,
+#           data jsonb not null,
+#           updated_at timestamptz default now()
+#         );
+#    3. Settings → API → copy the Project URL and the service_role key
+#       into Render's environment variables above.
+#
+#  If any of these env vars are missing, admin login/editing is disabled
+#  gracefully — the chatbot itself keeps working normally either way.
+# ============================================================
+
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+
+ADMIN_AUTH_CONFIGURED = bool(ADMIN_PASSWORD and ADMIN_SECRET)
+SUPABASE_CONFIGURED = bool(SUPABASE_URL and SUPABASE_SERVICE_KEY)
+
+_serializer = URLSafeTimedSerializer(ADMIN_SECRET) if ADMIN_SECRET else None
+ADMIN_TOKEN_MAX_AGE = 60 * 60 * 8  # 8 hours
+
+def _supabase_headers():
+    return {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json",
+    }
+
+def load_overrides_from_supabase():
+    """Called once at startup: pulls any previously-saved admin edits from
+    Supabase and merges them onto the hardcoded defaults. If Supabase isn't
+    configured or the request fails, CAMPUS_DATA just stays as the
+    hardcoded defaults — never crashes the app."""
+    if not SUPABASE_CONFIGURED:
+        return {"attempted": False, "reason": "Supabase not configured"}
+    try:
+        resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/campus_data?select=key,data",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        resp.raise_for_status()
+        rows = resp.json()
+        applied = 0
+        for row in rows:
+            key = row.get("key")
+            data = row.get("data")
+            if key in CAMPUS_DATA and isinstance(data, dict):
+                CAMPUS_DATA[key].update(data)
+                applied += 1
+        return {"attempted": True, "success": True, "rows_applied": applied}
+    except Exception as e:
+        return {"attempted": True, "success": False, "error": f"{type(e).__name__}: {e}"}
+
+def save_override_to_supabase(key: str, fields: Dict[str, Any]):
+    """Upserts the given fields for one CAMPUS_DATA entry into Supabase,
+    so the edit survives future restarts/redeploys."""
+    if not SUPABASE_CONFIGURED:
+        return {"success": False, "error": "Supabase not configured — edit only applied in memory, will be lost on restart"}
+    try:
+        # Merge with whatever's already stored for this key, so a partial
+        # edit doesn't wipe out previously-saved fields for the same entry.
+        existing = requests.get(
+            f"{SUPABASE_URL}/rest/v1/campus_data?key=eq.{key}&select=data",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        existing_data = {}
+        if existing.ok and existing.json():
+            existing_data = existing.json()[0].get("data", {}) or {}
+        merged = {**existing_data, **fields}
+
+        resp = requests.post(
+            f"{SUPABASE_URL}/rest/v1/campus_data",
+            headers={**_supabase_headers(), "Prefer": "resolution=merge-duplicates"},
+            json={"key": key, "data": merged},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": f"{type(e).__name__}: {e}"}
+
+def create_admin_token() -> str:
+    return _serializer.dumps({"role": "admin"})
+
+def verify_admin_token(authorization: Optional[str]):
+    """Dependency-style check used at the top of every admin write
+    endpoint. Raises HTTPException if the token is missing/invalid/expired."""
+    if not ADMIN_AUTH_CONFIGURED:
+        raise HTTPException(status_code=503, detail="Admin login is not configured on this server yet")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    token = authorization.removeprefix("Bearer ").strip()
+    try:
+        _serializer.loads(token, max_age=ADMIN_TOKEN_MAX_AGE)
+    except SignatureExpired:
+        raise HTTPException(status_code=401, detail="Session expired, please log in again")
+    except BadSignature:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+class AdminLoginRequest(BaseModel):
+    password: str
+
+class AdminUpdateRequest(BaseModel):
+    fields: Dict[str, Any]  # e.g. {"chairperson": "Dr. New Name", "contact": "..."}
+
 def clean_text(text):
     return re.sub(r'[^\w\s]', '', text.lower().strip())
 
@@ -1105,9 +1249,92 @@ def classify_intent(query):
     # straight to "Clarification" and never trying the AI layer.
     return "Get_Info"
 
+_SUPABASE_LOAD_RESULT = None
+
+@app.on_event("startup")
+def _on_startup():
+    global _SUPABASE_LOAD_RESULT
+    _SUPABASE_LOAD_RESULT = load_overrides_from_supabase()
+
 @app.get("/")
 def root():
     return {"message": "Mangalore University Assistant API is LIVE! 🚀"}
+
+@app.get("/debug/database")
+def debug_database():
+    """Diagnostic endpoint — shows whether Supabase is configured and
+    whether the startup sync succeeded, without exposing the actual key."""
+    key_hint = None
+    if SUPABASE_SERVICE_KEY:
+        key_hint = f"{SUPABASE_SERVICE_KEY[:4]}...{SUPABASE_SERVICE_KEY[-4:]} (len={len(SUPABASE_SERVICE_KEY)})"
+    return {
+        "supabase_configured": SUPABASE_CONFIGURED,
+        "supabase_url": SUPABASE_URL,
+        "service_key_hint": key_hint,
+        "admin_auth_configured": ADMIN_AUTH_CONFIGURED,
+        "startup_sync_result": _SUPABASE_LOAD_RESULT,
+    }
+
+@app.post("/admin/login")
+def admin_login(request: AdminLoginRequest):
+    if not ADMIN_AUTH_CONFIGURED:
+        raise HTTPException(status_code=503, detail="Admin login is not configured on this server yet (missing ADMIN_PASSWORD/ADMIN_SECRET)")
+    if request.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    return {"token": create_admin_token(), "expires_in_seconds": ADMIN_TOKEN_MAX_AGE}
+
+@app.get("/admin/departments")
+def admin_list_departments(authorization: Optional[str] = Header(None)):
+    verify_admin_token(authorization)
+    # Return a trimmed view — enough to edit, without dumping every
+    # internal note/alias field into the admin UI.
+    return {
+        key: {
+            "name": data.get("name"),
+            "name_kn": data.get("name_kn"),
+            "location": data.get("location"),
+            "chairperson": data.get("chairperson"),
+            "contact": data.get("contact"),
+            "person": data.get("person"),
+            "fee_note": data.get("fee_note"),
+            "timings": data.get("timings"),
+            "verified": data.get("verified"),
+            "last_verified": data.get("last_verified"),
+        }
+        for key, data in CAMPUS_DATA.items()
+    }
+
+@app.put("/admin/departments/{key}")
+def admin_update_department(key: str, request: AdminUpdateRequest, authorization: Optional[str] = Header(None)):
+    verify_admin_token(authorization)
+    if key not in CAMPUS_DATA:
+        raise HTTPException(status_code=404, detail=f"Unknown key '{key}'")
+
+    # Apply in memory immediately — chat answers reflect this right away.
+    CAMPUS_DATA[key].update(request.fields)
+    CAMPUS_DATA[key]["last_verified"] = "admin-edited"
+
+    # Persist to Supabase so it survives a restart/redeploy.
+    save_result = save_override_to_supabase(key, {**request.fields, "last_verified": "admin-edited"})
+
+    return {
+        "success": True,
+        "key": key,
+        "updated_fields": request.fields,
+        "persisted": save_result.get("success", False),
+        "persistence_error": save_result.get("error"),
+    }
+
+@app.post("/admin/reset/{key}")
+def admin_reset_department(key: str, authorization: Optional[str] = Header(None)):
+    """Resets one entry back to its original hardcoded default — useful
+    if an admin edit was a mistake."""
+    verify_admin_token(authorization)
+    if key not in _CAMPUS_DATA_DEFAULTS:
+        raise HTTPException(status_code=404, detail=f"Unknown key '{key}'")
+    CAMPUS_DATA[key] = copy.deepcopy(_CAMPUS_DATA_DEFAULTS[key])
+    save_result = save_override_to_supabase(key, CAMPUS_DATA[key])
+    return {"success": True, "persisted": save_result.get("success", False)}
 
 @app.get("/debug/gemini")
 def debug_gemini():
