@@ -861,10 +861,13 @@ def _supabase_headers():
     }
 
 def load_overrides_from_supabase():
-    """Called once at startup: pulls any previously-saved admin edits from
-    Supabase and merges them onto the hardcoded defaults. If Supabase isn't
-    configured or the request fails, CAMPUS_DATA just stays as the
-    hardcoded defaults — never crashes the app."""
+    """Called once at startup: pulls any previously-saved admin edits
+    (both departments AND fees, distinguished by a namespace prefix in
+    the stored key: 'dept:xxx' or 'fee:xxx') and merges them onto the
+    hardcoded defaults. New entries an admin created (not in the original
+    hardcoded data) are added fresh. If Supabase isn't configured or the
+    request fails, everything just stays as the hardcoded defaults —
+    never crashes the app."""
     if not SUPABASE_CONFIGURED:
         return {"attempted": False, "reason": "Supabase not configured"}
     try:
@@ -877,25 +880,37 @@ def load_overrides_from_supabase():
         rows = resp.json()
         applied = 0
         for row in rows:
-            key = row.get("key")
+            raw_key = row.get("key", "")
             data = row.get("data")
-            if key in CAMPUS_DATA and isinstance(data, dict):
-                CAMPUS_DATA[key].update(data)
+            if not isinstance(data, dict) or ":" not in raw_key:
+                continue
+            namespace, key = raw_key.split(":", 1)
+            if namespace == "dept":
+                if key in CAMPUS_DATA:
+                    CAMPUS_DATA[key].update(data)
+                else:
+                    CAMPUS_DATA[key] = data  # admin-created department
+                applied += 1
+            elif namespace == "fee":
+                if key in COURSE_FEES:
+                    COURSE_FEES[key].update(data)
+                else:
+                    COURSE_FEES[key] = data  # admin-created fee category
                 applied += 1
         return {"attempted": True, "success": True, "rows_applied": applied}
     except Exception as e:
         return {"attempted": True, "success": False, "error": f"{type(e).__name__}: {e}"}
 
-def save_override_to_supabase(key: str, fields: Dict[str, Any]):
-    """Upserts the given fields for one CAMPUS_DATA entry into Supabase,
-    so the edit survives future restarts/redeploys."""
+def save_override_to_supabase(namespace: str, key: str, fields: Dict[str, Any]):
+    """Upserts fields for one entry (department OR fee, distinguished by
+    namespace: 'dept' or 'fee') into Supabase, so the edit survives
+    future restarts/redeploys."""
     if not SUPABASE_CONFIGURED:
         return {"success": False, "error": "Supabase not configured — edit only applied in memory, will be lost on restart"}
+    storage_key = f"{namespace}:{key}"
     try:
-        # Merge with whatever's already stored for this key, so a partial
-        # edit doesn't wipe out previously-saved fields for the same entry.
         existing = requests.get(
-            f"{SUPABASE_URL}/rest/v1/campus_data?key=eq.{key}&select=data",
+            f"{SUPABASE_URL}/rest/v1/campus_data?key=eq.{storage_key}&select=data",
             headers=_supabase_headers(),
             timeout=10,
         )
@@ -907,7 +922,22 @@ def save_override_to_supabase(key: str, fields: Dict[str, Any]):
         resp = requests.post(
             f"{SUPABASE_URL}/rest/v1/campus_data",
             headers={**_supabase_headers(), "Prefer": "resolution=merge-duplicates"},
-            json={"key": key, "data": merged},
+            json={"key": storage_key, "data": merged},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": f"{type(e).__name__}: {e}"}
+
+def delete_override_from_supabase(namespace: str, key: str):
+    if not SUPABASE_CONFIGURED:
+        return {"success": False, "error": "Supabase not configured"}
+    storage_key = f"{namespace}:{key}"
+    try:
+        resp = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/campus_data?key=eq.{storage_key}",
+            headers=_supabase_headers(),
             timeout=10,
         )
         resp.raise_for_status()
@@ -938,6 +968,22 @@ class AdminLoginRequest(BaseModel):
 
 class AdminUpdateRequest(BaseModel):
     fields: Dict[str, Any]  # e.g. {"chairperson": "Dr. New Name", "contact": "..."}
+
+class AdminCreateDepartmentRequest(BaseModel):
+    key: str  # internal id, e.g. "geography department" — lowercase, used in URLs
+    name: str
+    location: str = ""  # building/block name
+    chairperson: str = ""
+    contact: str = ""
+    aliases: Optional[list] = None  # auto-generated from name if omitted
+
+class AdminCreateFeeRequest(BaseModel):
+    key: str
+    label: str
+    year: str = ""
+    pdf: str = ""
+    pdf_label: str = ""
+    note: Optional[str] = None
 
 def clean_text(text):
     return re.sub(r'[^\w\s]', '', text.lower().strip())
@@ -1304,6 +1350,35 @@ def admin_list_departments(authorization: Optional[str] = Header(None)):
         for key, data in CAMPUS_DATA.items()
     }
 
+@app.post("/admin/departments")
+def admin_create_department(request: AdminCreateDepartmentRequest, authorization: Optional[str] = Header(None)):
+    """Adds a brand-new department/office/building entry — for anything
+    not already in the dataset (e.g. a newly-formed department, or a
+    building that was missed)."""
+    verify_admin_token(authorization)
+    key = request.key.strip().lower()
+    if not key:
+        raise HTTPException(status_code=400, detail="key is required")
+    if key in CAMPUS_DATA:
+        raise HTTPException(status_code=409, detail=f"'{key}' already exists — use PUT /admin/departments/{key} to edit it instead")
+
+    aliases = request.aliases or [w for w in re.findall(r'[a-z]+', request.name.lower()) if len(w) > 2]
+    entry: Dict[str, Any] = {
+        "name": request.name,
+        "location": request.location,
+        "aliases": aliases,
+        "verified": False,  # admin-added entries start unverified until double-checked
+        "last_verified": "admin-added",
+    }
+    if request.chairperson:
+        entry["chairperson"] = request.chairperson
+    if request.contact:
+        entry["contact"] = request.contact
+
+    CAMPUS_DATA[key] = entry
+    save_result = save_override_to_supabase("dept", key, entry)
+    return {"success": True, "key": key, "persisted": save_result.get("success", False), "persistence_error": save_result.get("error")}
+
 @app.put("/admin/departments/{key}")
 def admin_update_department(key: str, request: AdminUpdateRequest, authorization: Optional[str] = Header(None)):
     verify_admin_token(authorization)
@@ -1315,7 +1390,7 @@ def admin_update_department(key: str, request: AdminUpdateRequest, authorization
     CAMPUS_DATA[key]["last_verified"] = "admin-edited"
 
     # Persist to Supabase so it survives a restart/redeploy.
-    save_result = save_override_to_supabase(key, {**request.fields, "last_verified": "admin-edited"})
+    save_result = save_override_to_supabase("dept", key, {**request.fields, "last_verified": "admin-edited"})
 
     return {
         "success": True,
@@ -1325,16 +1400,75 @@ def admin_update_department(key: str, request: AdminUpdateRequest, authorization
         "persistence_error": save_result.get("error"),
     }
 
+@app.delete("/admin/departments/{key}")
+def admin_delete_department(key: str, authorization: Optional[str] = Header(None)):
+    verify_admin_token(authorization)
+    if key not in CAMPUS_DATA:
+        raise HTTPException(status_code=404, detail=f"Unknown key '{key}'")
+    del CAMPUS_DATA[key]
+    delete_result = delete_override_from_supabase("dept", key)
+    return {"success": True, "persisted_delete": delete_result.get("success", False)}
+
 @app.post("/admin/reset/{key}")
 def admin_reset_department(key: str, authorization: Optional[str] = Header(None)):
     """Resets one entry back to its original hardcoded default — useful
-    if an admin edit was a mistake."""
+    if an admin edit was a mistake. Only works for entries that existed
+    in the original hardcoded dataset (not admin-created new ones)."""
     verify_admin_token(authorization)
     if key not in _CAMPUS_DATA_DEFAULTS:
-        raise HTTPException(status_code=404, detail=f"Unknown key '{key}'")
+        raise HTTPException(status_code=404, detail=f"'{key}' has no original default to reset to (it may be an admin-created entry — delete it instead if it's wrong)")
     CAMPUS_DATA[key] = copy.deepcopy(_CAMPUS_DATA_DEFAULTS[key])
-    save_result = save_override_to_supabase(key, CAMPUS_DATA[key])
+    save_result = save_override_to_supabase("dept", key, CAMPUS_DATA[key])
     return {"success": True, "persisted": save_result.get("success", False)}
+
+# ---------------- Fee management ----------------
+
+@app.get("/admin/fees")
+def admin_list_fees(authorization: Optional[str] = Header(None)):
+    verify_admin_token(authorization)
+    return COURSE_FEES
+
+@app.post("/admin/fees")
+def admin_create_fee(request: AdminCreateFeeRequest, authorization: Optional[str] = Header(None)):
+    verify_admin_token(authorization)
+    key = request.key.strip().lower()
+    if not key:
+        raise HTTPException(status_code=400, detail="key is required")
+    if key in COURSE_FEES:
+        raise HTTPException(status_code=409, detail=f"'{key}' already exists — use PUT /admin/fees/{key} to edit it instead")
+    entry = {
+        "label": request.label,
+        "year": request.year,
+        "pdf": request.pdf,
+        "pdf_label": request.pdf_label,
+        "note": request.note,
+    }
+    COURSE_FEES[key] = entry
+    save_result = save_override_to_supabase("fee", key, entry)
+    return {"success": True, "key": key, "persisted": save_result.get("success", False), "persistence_error": save_result.get("error")}
+
+@app.put("/admin/fees/{key}")
+def admin_update_fee(key: str, request: AdminUpdateRequest, authorization: Optional[str] = Header(None)):
+    verify_admin_token(authorization)
+    if key not in COURSE_FEES:
+        raise HTTPException(status_code=404, detail=f"Unknown fee key '{key}'")
+    COURSE_FEES[key].update(request.fields)
+    save_result = save_override_to_supabase("fee", key, COURSE_FEES[key])
+    return {
+        "success": True,
+        "key": key,
+        "persisted": save_result.get("success", False),
+        "persistence_error": save_result.get("error"),
+    }
+
+@app.delete("/admin/fees/{key}")
+def admin_delete_fee(key: str, authorization: Optional[str] = Header(None)):
+    verify_admin_token(authorization)
+    if key not in COURSE_FEES:
+        raise HTTPException(status_code=404, detail=f"Unknown fee key '{key}'")
+    del COURSE_FEES[key]
+    delete_result = delete_override_from_supabase("fee", key)
+    return {"success": True, "persisted_delete": delete_result.get("success", False)}
 
 @app.get("/debug/gemini")
 def debug_gemini():
