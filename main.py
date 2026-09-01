@@ -1198,7 +1198,8 @@ def format_entry(key, lang="en"):
         lines.append(f"👤 {data['person']}")
     if "chairperson" in data:
         cp_line = f"👤 **{tr('label_chairperson', lang)}:** {data['chairperson']}"
-        if "last_verified" in data:
+        chairperson_already_dated = "as of" in data['chairperson'].lower() or "onwards" in data['chairperson'].lower()
+        if "last_verified" in data and not chairperson_already_dated:
             cp_line += f" _({tr('label_as_of', lang)} {data['last_verified']})_"
         lines.append(cp_line)
 
