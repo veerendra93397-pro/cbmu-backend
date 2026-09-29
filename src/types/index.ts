@@ -81,4 +81,7 @@ export interface StringsDict {
   searchPlaceholder: string;
   noSearchResults: string;
   searchResultsCount: string;
+  exportChat: string;
+  exportText: string;
+  exportPdf: string;
 }

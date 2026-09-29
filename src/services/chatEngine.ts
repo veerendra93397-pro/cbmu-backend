@@ -162,6 +162,19 @@ export async function processChatMessage(message: string, lang: Language): Promi
     };
   }
 
+  if (lower.includes('library location') || lower.includes('where is the library') || lower.includes('show me the library') || (lower.includes('library') && (lower.includes('location') || lower.includes('where') || lower.includes('map') || lower.includes('reach') || lower.includes('elli')))) {
+    if (lang === 'kn') {
+      return {
+        answer: `### 📚 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ (Central Library)\n\n📍 **ಸ್ಥಳ:** ಮುಖ್ಯ ಆಡಳಿತ ಸೌಧದ (Admin Block) ಮುಂಭಾಗದಲ್ಲಿ, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್, ಕೊಣಾಜೆ.\n⏰ **ಸಮಯ:** ಸೋಮವಾರ - ಶನಿವಾರ: 9:00 AM – 5:30 PM (ಓದುವ ಕೊಠಡಿಗಳು ಬೆಳಗ್ಗೆ 8 ರಿಂದ ರಾತ್ರಿ 8 ರವರೆಗೆ ತೆರೆದಿರುತ್ತವೆ)\n👤 **ಗ್ರಂಥಪಾಲಕರು:** Dr. M. Purushotham Gowda (ಮೊಬೈಲ್: 9449450671)\n\n__LOCATION__:12.8153,74.9248`,
+        source: 'local'
+      };
+    }
+    return {
+      answer: `### 📚 Central University Library Location\n\n📍 **Location:** Opposite Administration Block, Mangalagangotri Campus, Konaje (Mangaluru - 574199).\n⏰ **Timings:** Monday to Saturday: 9:00 AM – 5:30 PM (Reading halls open 8:00 AM – 8:00 PM on weekdays).\n👤 **In-Charge Librarian:** Dr. M. Purushotham Gowda (Mobile: 9449450671)\n\n__LOCATION__:12.8153,74.9248`,
+      source: 'local'
+    };
+  }
+
   if (lower.includes('library hour') || lower.includes('library timing') || lower.includes('library time') || (lower.includes('library') && lower.includes('hour'))) {
     if (lang === 'kn') {
       return {

@@ -19,7 +19,10 @@ import {
   Clock,
   ShieldAlert,
   Search,
-  X
+  X,
+  Download,
+  FileText,
+  Printer
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -59,10 +62,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
   const t = (key: keyof typeof kStrings['en']) => {
@@ -214,6 +219,117 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     }
   };
 
+  // Close export menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showExportMenu]);
+
+  const handleExportText = () => {
+    setShowExportMenu(false);
+    const dateStr = new Date().toISOString().split('T')[0];
+    let fileContent = `=================================================\n`;
+    fileContent += `Mangalore University Campus Assistant (CBMU)\n`;
+    fileContent += `Chat Conversation Export - ${new Date().toLocaleString()}\n`;
+    fileContent += `=================================================\n\n`;
+
+    messages.forEach((msg, idx) => {
+      const { cleanText } = parseMessageData(msg.text);
+      const sender = msg.isUser ? 'Student / User' : 'CBMU Assistant';
+      const time = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      fileContent += `[${idx + 1}] ${sender} (${time}):\n`;
+      fileContent += `${cleanText}\n\n`;
+      fileContent += `-------------------------------------------------\n`;
+    });
+
+    const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `CBMU_Chat_History_${dateStr}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = () => {
+    setShowExportMenu(false);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      // Fallback to text export if popup is blocked
+      handleExportText();
+      return;
+    }
+
+    const title = 'CBMU Campus Assistant - Chat Export';
+    const dateStr = new Date().toLocaleDateString();
+    
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #111; max-width: 800px; margin: 0 auto; line-height: 1.5; }
+          .header { border-bottom: 2px solid #10A37F; padding-bottom: 12px; margin-bottom: 20px; }
+          .title { font-size: 20px; font-weight: bold; color: #0d8264; margin: 0 0 4px 0; }
+          .meta { font-size: 12px; color: #666; }
+          .msg { margin-bottom: 16px; padding: 12px 16px; border-radius: 8px; font-size: 14px; page-break-inside: avoid; }
+          .msg-user { background: #f0fdf4; border-left: 4px solid #10a37f; }
+          .msg-bot { background: #f8fafc; border-left: 4px solid #64748b; }
+          .sender { font-weight: 600; font-size: 12px; margin-bottom: 4px; color: #334155; }
+          .time { font-weight: normal; color: #94a3b8; font-size: 11px; margin-left: 6px; }
+          .text { white-space: pre-wrap; word-break: break-word; }
+          @media print {
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="title">🎓 Mangalore University Campus Assistant (CBMU)</h1>
+          <div class="meta">Exported on ${dateStr} • Total messages: ${messages.length}</div>
+        </div>
+    `;
+
+    messages.forEach((msg) => {
+      const { cleanText } = parseMessageData(msg.text);
+      const sender = msg.isUser ? 'You (Student)' : 'CBMU Assistant';
+      const time = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const cls = msg.isUser ? 'msg msg-user' : 'msg msg-bot';
+      htmlContent += `
+        <div class="${cls}">
+          <div class="sender">${sender}<span class="time">${time}</span></div>
+          <div class="text">${cleanText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+        </div>
+      `;
+    });
+
+    htmlContent += `
+        <script>
+          window.onload = function() {
+            window.print();
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   // Filter messages based on search query if searching
   const filteredMessages = isSearching && searchQuery.trim()
     ? messages.filter((m) => {
@@ -344,13 +460,20 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const quickPrompts = [
-    { label: "MCA Fees", query: "What is the MCA fee structure?" },
+  const suggestedPromptChips = lang === 'kn' ? [
+    { label: "ಶುಲ್ಕ ವಿವರಗಳು", query: "ಶುಲ್ಕ ರಚನೆ ಏನು? (What is the fee structure?)" },
+    { label: "ಗ್ರಂಥಾಲಯ ಸ್ಥಳ", query: "ಗ್ರಂಥಾಲಯ ಎಲ್ಲಿದೆ? (Show me the library location)" },
+    { label: "ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶ", query: "ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳು ಎಲ್ಲಿ ಸಿಗುತ್ತವೆ?" },
+    { label: "ಕ್ಯಾಂಪಸ್ ನಿಯಮಗಳು", query: "ಕ್ಯಾಂಪಸ್ ನಿಯಮಗಳು ಮತ್ತು ಶಿಸ್ತು" },
+    { label: "ಹಾಸ್ಟೆಲ್ ವಿವರ", query: "ಹಾಸ್ಟೆಲ್ ವಸತಿ ಮಾಹಿತಿ" },
+    { label: "ಕುಲಸಚಿವರ ಕಚೇರಿ", query: "ಕುಲಸಚಿವರ ಕಚೇರಿ ಸಂಪರ್ಕ ವಿವರ" },
+  ] : [
+    { label: "What is the fee structure?", query: "What is the fee structure?" },
+    { label: "Show me the library location", query: "Show me the library location" },
+    { label: "Check Results", query: "How to check examination results?" },
+    { label: "Campus Rules", query: "Campus rules and discipline policies" },
     { label: "Science Block", query: "Tell me about Science Block" },
-    { label: "Registrar Office", query: "Registrar office contact" },
-    { label: "Hostels", query: "University hostels info" },
-    { label: "Library", query: "University library timings" },
-    { label: "Exam Section", query: "Examination section contact" },
+    { label: "Hostels Info", query: "University hostels contact and timings" },
   ];
 
   return (
@@ -390,6 +513,43 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             >
               <Search className="w-4.5 h-4.5" />
             </button>
+
+            {/* Export Chat Button & Dropdown */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className={`p-2 rounded-lg transition-colors ${
+                  showExportMenu
+                    ? 'bg-[#10A37F]/20 text-[#10A37F]'
+                    : 'hover:bg-[#2A2A2A] text-neutral-400 hover:text-white'
+                }`}
+                title={t('exportChat')}
+              >
+                <Download className="w-4.5 h-4.5" />
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 mt-1.5 w-52 rounded-xl bg-[#222222] border border-[#333333] shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-1.5 border-b border-[#333333] text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+                    {t('exportChat')}
+                  </div>
+                  <button
+                    onClick={handleExportText}
+                    className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-[#2A2A2A] hover:text-white flex items-center gap-2.5 transition-colors"
+                  >
+                    <FileText className="w-4 h-4 text-emerald-400" />
+                    <span>{t('exportText')}</span>
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-[#2A2A2A] hover:text-white flex items-center gap-2.5 transition-colors"
+                  >
+                    <Printer className="w-4 h-4 text-cyan-400" />
+                    <span>{t('exportPdf')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Language Toggle Button */}
             <button
@@ -488,7 +648,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
             {/* Quick chips */}
             <div className="flex flex-wrap gap-2 justify-center max-w-md">
-              {quickPrompts.map((p, idx) => (
+              {suggestedPromptChips.map((p, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleSendMessage(p.query)}
@@ -619,11 +779,22 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           })
         )}
 
-        {/* Thinking Indicator */}
+        {/* Bot is Typing Animation */}
         {isLoading && (
-          <div className="flex items-center gap-3 py-2 text-[#10A37F]">
-            <div className="w-5 h-5 border-2 border-[#10A37F]/30 border-t-[#10A37F] rounded-full animate-spin shrink-0" />
-            <span className="text-xs font-medium animate-pulse">{t('thinking')}</span>
+          <div className="flex gap-3 max-w-3xl mr-auto justify-start animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-b from-[#10A37F] to-[#1A7F64] flex items-center justify-center shrink-0 shadow-xs">
+              <Bot className="w-4.5 h-4.5 text-white animate-pulse" />
+            </div>
+            <div className="bg-[#2A2A2A] rounded-2xl rounded-tl-xs px-4 py-3 border border-[#333333]/60 flex items-center gap-2.5 shadow-sm">
+              <span className="text-xs font-medium text-neutral-300">
+                {t('thinking')}
+              </span>
+              <div className="flex items-center gap-1.5 py-0.5">
+                <span className="w-2 h-2 rounded-full bg-[#10A37F] animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-2 h-2 rounded-full bg-[#10A37F] animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-2 h-2 rounded-full bg-[#10A37F] animate-bounce" />
+              </div>
+            </div>
           </div>
         )}
 
@@ -673,46 +844,32 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </div>
         )}
 
-        {/* Quick Action Navigation Row */}
-        <div className="max-w-3xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-          <button
-            type="button"
-            onClick={() => handleSendMessage(lang === 'kn' ? 'ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳು' : 'Check Exam Results')}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#242424] hover:bg-[#2F2F2F] text-xs font-medium text-emerald-400 border border-emerald-500/20 whitespace-nowrap transition-colors active:scale-95 shadow-xs"
-          >
-            <Award className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>{lang === 'kn' ? 'ಫಲಿತಾಂಶಗಳು' : 'Check Results'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSendMessage(lang === 'kn' ? 'ಗ್ರಂಥಾಲಯ ಸಮಯ' : 'University Library Hours')}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#242424] hover:bg-[#2F2F2F] text-xs font-medium text-amber-300 border border-amber-500/20 whitespace-nowrap transition-colors active:scale-95 shadow-xs"
-          >
-            <Clock className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-            <span>{lang === 'kn' ? 'ಗ್ರಂಥಾಲಯ ಸಮಯ' : 'Library Hours'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSendMessage(lang === 'kn' ? 'ಕ್ಯಾಂಪಸ್ ನಿಯಮಗಳು' : 'Mangalore University Campus Rules')}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#242424] hover:bg-[#2F2F2F] text-xs font-medium text-cyan-300 border border-cyan-500/20 whitespace-nowrap transition-colors active:scale-95 shadow-xs"
-          >
-            <ShieldAlert className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
-            <span>{lang === 'kn' ? 'ಕ್ಯಾಂಪಸ್ ನಿಯಮಗಳು' : 'Campus Rules'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSendMessage(lang === 'kn' ? 'ಎಂಸಿಎ ಶುಲ್ಕ' : 'MCA fee structure')}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#242424] hover:bg-[#2F2F2F] text-xs font-medium text-neutral-300 hover:text-white border border-[#3A3A3A] whitespace-nowrap transition-colors active:scale-95 shadow-xs"
-          >
-            <span>{lang === 'kn' ? 'MCA ಶುಲ್ಕ' : 'MCA Fees'}</span>
-          </button>
+        {/* Suggested Prompt Chips Row above Input Field */}
+        <div className="max-w-3xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+          {suggestedPromptChips.map((chip, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleSendMessage(chip.query)}
+              disabled={isLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all active:scale-95 shadow-xs border ${
+                idx === 0
+                  ? 'bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border-emerald-500/30'
+                  : idx === 1
+                  ? 'bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border-amber-500/30'
+                  : idx === 2
+                  ? 'bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border-cyan-500/30'
+                  : 'bg-[#242424] hover:bg-[#2F2F2F] text-neutral-300 hover:text-white border-[#3A3A3A]'
+              }`}
+            >
+              {idx === 0 && <Award className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+              {idx === 1 && <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+              {idx === 2 && <Clock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+              {idx === 3 && <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
+              {idx > 3 && <Sparkles className="w-3 h-3 text-[#10A37F] shrink-0" />}
+              <span>{chip.label}</span>
+            </button>
+          ))}
         </div>
 
         <form
