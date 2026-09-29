@@ -13,6 +13,18 @@ export const AdminBuildingsScreen: React.FC<AdminBuildingsScreenProps> = ({ onBa
   const [locationText, setLocationText] = useState('');
   const [toast, setToast] = useState<string | null>(null);
 
+  // Sync latest from backend on mount and listen to changes
+  React.useEffect(() => {
+    const refresh = () => setDepartments(storage.getDepartments());
+    storage.syncDepartmentsFromBackend().then(latest => setDepartments(latest));
+    window.addEventListener('cbmu_data_updated', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('cbmu_data_updated', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -52,8 +64,14 @@ export const AdminBuildingsScreen: React.FC<AdminBuildingsScreenProps> = ({ onBa
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h2 className="font-semibold text-base">Buildings & Locations</h2>
-          <p className="text-[11px] text-neutral-400">Campus Facilities Location Editor</p>
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-base leading-none">Buildings & Locations</h2>
+            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Auto-synced</span>
+            </span>
+          </div>
+          <p className="text-[11px] text-neutral-400 mt-0.5">Campus Facilities Location Editor • saves to backend in background</p>
         </div>
       </div>
 

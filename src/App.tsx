@@ -10,6 +10,7 @@ import { FeedbackScreen } from './components/screens/FeedbackScreen';
 import { NoticesScreen } from './components/screens/NoticesScreen';
 import { SettingsScreen } from './components/screens/SettingsScreen';
 import { AboutScreen } from './components/screens/AboutScreen';
+import { AITutorScreen } from './components/screens/AITutorScreen';
 import { AdminLoginScreen } from './components/admin/AdminLoginScreen';
 import { AdminDashboardScreen, AdminSubScreen } from './components/admin/AdminDashboardScreen';
 import { AdminDepartmentsScreen } from './components/admin/AdminDepartmentsScreen';
@@ -18,7 +19,7 @@ import { AdminFeesScreen } from './components/admin/AdminFeesScreen';
 import { AdminBuildingsScreen } from './components/admin/AdminBuildingsScreen';
 import { AdminNoticesScreen } from './components/admin/AdminNoticesScreen';
 import { storage } from './services/storage';
-import { Language, ThemeMode } from './types';
+import { Language, ThemeMode, AppSettings } from './types';
 
 type FullScreenMode = 
   | 'splash'
@@ -37,6 +38,7 @@ export const App: React.FC = () => {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => storage.getThemeMode());
   const [lang, setLang] = useState<Language>(() => storage.getLanguage());
   const [unreadNotices, setUnreadNotices] = useState(0);
+  const [settings, setSettings] = useState<AppSettings>(() => storage.getSettings());
 
   // Active embedded map target
   const [mapTarget, setMapTarget] = useState<{ lat: number; lng: number; name: string } | null>(null);
@@ -49,6 +51,38 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     refreshUnreadBadge();
+    // Synchronize latest backend data on startup
+    storage.syncAllFromBackend().then(() => {
+      refreshUnreadBadge();
+      setSettings(storage.getSettings());
+    }).catch(err => console.warn('Initial backend sync error:', err));
+
+    // Listen to real-time updates across screens and tabs
+    const handleDataUpdated = () => {
+      refreshUnreadBadge();
+      setSettings(storage.getSettings());
+    };
+
+    window.addEventListener('cbmu_data_updated', handleDataUpdated);
+    window.addEventListener('storage', handleDataUpdated);
+
+    // Background Auto-Sync Interval: periodically syncs latest data silently in the background
+    const intervalId = setInterval(() => {
+      storage.syncAllFromBackend();
+    }, 12000);
+
+    // Also sync when window gains focus
+    const handleFocus = () => {
+      storage.syncAllFromBackend();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('cbmu_data_updated', handleDataUpdated);
+      window.removeEventListener('storage', handleDataUpdated);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(intervalId);
+    };
   }, []);
 
   // Update HTML class / color scheme when theme changes
@@ -138,6 +172,9 @@ export const App: React.FC = () => {
       case 'campus_map':
         return <CampusMapScreen onBack={() => setCurrentScreen('chat')} />;
 
+      case 'ai_tutor':
+        return <AITutorScreen onBack={() => setCurrentScreen('chat')} lang={lang} />;
+
       case 'academic_calendar':
         return (
           <AcademicCalendarScreen
@@ -220,8 +257,28 @@ export const App: React.FC = () => {
     }
   };
 
+  const getBackgroundClass = () => {
+    if (themeMode === 'light') return 'bg-[#F7F7F5] text-neutral-900';
+    switch (settings.backgroundTheme) {
+      case 'emerald':
+        return 'bg-gradient-to-br from-[#03150e] via-[#051c13] to-[#010906] text-white';
+      case 'navy':
+        return 'bg-gradient-to-br from-[#051124] via-[#081a36] to-[#02070e] text-white';
+      case 'slate':
+        return 'bg-gradient-to-br from-[#0e1622] via-[#141f30] to-[#070b10] text-white';
+      case 'mesh':
+        return 'bg-[#080d0b] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(16,163,127,0.25),rgba(0,0,0,0))] text-white';
+      case 'default':
+      default:
+        return 'bg-black text-white';
+    }
+  };
+
   return (
-    <div className={`w-screen h-screen flex flex-col overflow-hidden ${themeMode === 'light' ? 'bg-[#F7F7F5] text-neutral-900' : 'bg-black text-white'}`}>
+    <div 
+      className={`w-screen h-screen flex flex-col overflow-hidden transition-colors duration-300 ${getBackgroundClass()}`}
+      style={settings.customBackgroundUrl ? { backgroundImage: `url(${settings.customBackgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+    >
       {renderScreen()}
 
       <NavigationDrawer

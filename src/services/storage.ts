@@ -1,14 +1,26 @@
-import { CampusEntity, CourseFee, Notice, ThemeMode, Message, Language } from '../types';
+import { CampusEntity, CourseFee, Notice, ThemeMode, Message, Language, AppSettings } from '../types';
 import { DEFAULT_CAMPUS_DATA, DEFAULT_COURSE_FEES, DEFAULT_NOTICES } from '../data/campusData';
 
 const DEPARTMENTS_KEY = 'cbmu_departments';
 const FEES_KEY = 'cbmu_fees';
 const NOTICES_KEY = 'cbmu_notices';
+const SETTINGS_KEY = 'cbmu_settings';
 const CHAT_HISTORY_KEY = 'chat_history';
 const THEME_KEY = 'app_theme_mode';
 const LANG_KEY = 'app_lang';
 const ADMIN_TOKEN_KEY = 'admin_token';
 const NOTICES_LAST_SEEN_KEY = 'notices_last_seen';
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  backgroundTheme: 'default',
+  campusName: 'Mangalore University',
+};
+
+function notifyDataUpdated(type: 'departments' | 'fees' | 'notices' | 'settings' | 'all') {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cbmu_data_updated', { detail: { type, timestamp: Date.now() } }));
+  }
+}
 
 export const storage = {
   getThemeMode(): ThemeMode {
@@ -59,9 +71,32 @@ export const storage = {
     return { ...DEFAULT_CAMPUS_DATA };
   },
 
+  async syncDepartmentsFromBackend(): Promise<Record<string, CampusEntity>> {
+    try {
+      const res = await fetch('/api/departments');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          localStorage.setItem(DEPARTMENTS_KEY, JSON.stringify(data));
+          return data;
+        }
+      }
+    } catch {
+      // Offline or network error
+    }
+    return this.getDepartments();
+  },
+
   saveDepartments(departments: Record<string, CampusEntity>): void {
     try {
       localStorage.setItem(DEPARTMENTS_KEY, JSON.stringify(departments));
+      notifyDataUpdated('departments');
+      // Automatically synchronize with backend in background
+      fetch('/api/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(departments),
+      }).catch(err => console.warn('Backend sync failed (departments):', err));
     } catch {
       // ignore
     }
@@ -79,9 +114,32 @@ export const storage = {
     return { ...DEFAULT_COURSE_FEES };
   },
 
+  async syncFeesFromBackend(): Promise<Record<string, CourseFee>> {
+    try {
+      const res = await fetch('/api/fees');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          localStorage.setItem(FEES_KEY, JSON.stringify(data));
+          return data;
+        }
+      }
+    } catch {
+      // Offline or network error
+    }
+    return this.getFees();
+  },
+
   saveFees(fees: Record<string, CourseFee>): void {
     try {
       localStorage.setItem(FEES_KEY, JSON.stringify(fees));
+      notifyDataUpdated('fees');
+      // Automatically synchronize with backend in background
+      fetch('/api/fees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fees),
+      }).catch(err => console.warn('Backend sync failed (fees):', err));
     } catch {
       // ignore
     }
@@ -99,11 +157,97 @@ export const storage = {
     return [...DEFAULT_NOTICES];
   },
 
+  async syncNoticesFromBackend(): Promise<Notice[]> {
+    try {
+      const res = await fetch('/api/notices');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          localStorage.setItem(NOTICES_KEY, JSON.stringify(data));
+          return data;
+        }
+      }
+    } catch {
+      // Offline or network error
+    }
+    return this.getNotices();
+  },
+
   saveNotices(notices: Notice[]): void {
     try {
       localStorage.setItem(NOTICES_KEY, JSON.stringify(notices));
+      notifyDataUpdated('notices');
+      // Automatically synchronize with backend in background
+      fetch('/api/notices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notices),
+      }).catch(err => console.warn('Backend sync failed (notices):', err));
     } catch {
       // ignore
+    }
+  },
+
+  getSettings(): AppSettings {
+    try {
+      const data = localStorage.getItem(SETTINGS_KEY);
+      if (data) {
+        return { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+      }
+    } catch {
+      // fallback
+    }
+    return { ...DEFAULT_SETTINGS };
+  },
+
+  async syncSettingsFromBackend(): Promise<AppSettings> {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object') {
+          const merged = { ...DEFAULT_SETTINGS, ...data };
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged));
+          return merged;
+        }
+      }
+    } catch {
+      // Offline
+    }
+    return this.getSettings();
+  },
+
+  saveSettings(settings: Partial<AppSettings>): void {
+    try {
+      const current = this.getSettings();
+      const updated = { ...current, ...settings };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+      notifyDataUpdated('settings');
+      // Automatically synchronize with backend in background
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      }).catch(err => console.warn('Backend sync failed (settings):', err));
+    } catch {
+      // ignore
+    }
+  },
+
+  /**
+   * Synchronize all data from backend and notify listeners if changed
+   */
+  async syncAllFromBackend(): Promise<void> {
+    try {
+      await Promise.all([
+        this.syncDepartmentsFromBackend(),
+        this.syncFeesFromBackend(),
+        this.syncNoticesFromBackend(),
+        this.syncSettingsFromBackend(),
+      ]);
+      notifyDataUpdated('all');
+    } catch {
+      // Silent in background
     }
   },
 

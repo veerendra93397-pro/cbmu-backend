@@ -2,5 +2,8 @@
   "name": "CBMU Campus Assistant",
   "description": "Interactive campus assistant and portal for Mangalore University students, featuring an intelligent bilingual chatbot, interactive campus map, notices, department directories, fee structures, and staff administration.",
   "permissions": [],
-  "capabilities": []
+  "capabilities": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

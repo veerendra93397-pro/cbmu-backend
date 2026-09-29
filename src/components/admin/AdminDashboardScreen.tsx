@@ -9,9 +9,14 @@ import {
   Bell, 
   Clock, 
   ChevronRight,
-  Plus
+  Plus,
+  Palette,
+  Check,
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { storage } from '../../services/storage';
+import { BackgroundTheme, AppSettings } from '../../types';
 
 export type AdminSubScreen = 
   | 'departments' 
@@ -37,11 +42,16 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
   const [buildingCount, setBuildingCount] = useState(0);
   const [noticeCount, setNoticeCount] = useState(0);
   const [recentUpdates, setRecentUpdates] = useState<Array<{ name: string; tag: string }>>([]);
+  const [settings, setSettings] = useState<AppSettings>(() => storage.getSettings());
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncedTime, setLastSyncedTime] = useState<string>('Just now');
 
   const loadData = () => {
     const depts = storage.getDepartments();
     const fees = storage.getFees();
     const notices = storage.getNotices();
+    const currentSettings = storage.getSettings();
+    setSettings(currentSettings);
 
     const deptValues = Object.values(depts);
     const chairpersons = deptValues.filter(d => {
@@ -70,14 +80,54 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
     setRecentUpdates(recents);
   };
 
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      await storage.syncAllFromBackend();
+      loadData();
+      setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
+    }
+  };
+
+  const handleSelectBackgroundTheme = (themeKey: BackgroundTheme) => {
+    storage.saveSettings({ backgroundTheme: themeKey });
+    setSettings(prev => ({ ...prev, backgroundTheme: themeKey }));
+  };
+
   useEffect(() => {
     loadData();
+    storage.syncAllFromBackend().then(() => {
+      loadData();
+      setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    });
+
+    const handleUpdate = () => {
+      loadData();
+      setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    };
+
+    window.addEventListener('cbmu_data_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('cbmu_data_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
+
+  const backgroundThemeOptions: Array<{ key: BackgroundTheme; name: string; preview: string; desc: string }> = [
+    { key: 'default', name: 'Default Onyx', preview: 'bg-black border-neutral-700', desc: 'Classic solid dark' },
+    { key: 'emerald', name: 'Mangalore Emerald', preview: 'bg-gradient-to-br from-[#041a12] to-[#010906] border-emerald-500/40', desc: 'Campus university green' },
+    { key: 'navy', name: 'Midnight Navy', preview: 'bg-gradient-to-br from-[#061226] to-[#02070e] border-blue-500/40', desc: 'Academic deep blue' },
+    { key: 'slate', name: 'Graphite Slate', preview: 'bg-gradient-to-br from-[#0f1722] to-[#070a0e] border-slate-500/40', desc: 'Cool neutral slate' },
+    { key: 'mesh', name: 'Campus Aura Mesh', preview: 'bg-[#080d0b] border-emerald-400/50', desc: 'Radiant aurora glow' },
+  ];
 
   return (
     <div className="w-full h-full flex flex-col bg-black text-white">
       {/* Header */}
-      <div className="h-14 px-4 bg-[#1A1A1A] border-b border-[#2A2A2A] flex items-center justify-between">
+      <div className="h-14 px-4 bg-[#1A1A1A] border-b border-[#2A2A2A] flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
@@ -87,8 +137,14 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="font-semibold text-base">Admin Dashboard</h2>
-            <p className="text-[11px] text-neutral-400">Campus Records & Directory</p>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-base leading-none">Admin Dashboard</h2>
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Live Sync Active</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Campus Records & Directory Manager</p>
           </div>
         </div>
 
@@ -103,7 +159,34 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 max-w-2xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-4 space-y-5 max-w-2xl mx-auto w-full">
+        {/* Real-time Backend & Background Sync Banner */}
+        <div className="bg-gradient-to-r from-emerald-950/40 via-[#1A1A1A] to-[#1A1A1A] border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <Sparkles className="w-4.5 h-4.5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-white tracking-wide uppercase">Automatic Background Sync</h4>
+                <span className="text-[10px] text-emerald-400 font-mono">● Active ({lastSyncedTime})</span>
+              </div>
+              <p className="text-xs text-neutral-300 mt-0.5 line-clamp-1">
+                Any changes you edit automatically save to server files and live AI assistant.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#252525] hover:bg-[#303030] border border-neutral-700 text-xs font-medium text-neutral-200 shrink-0 transition-colors"
+            title="Force refresh data from server"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
+            <span className="hidden sm:inline">Sync Now</span>
+          </button>
+        </div>
+
         {/* 2x2 Stats Grid (matching Flutter GridView.count) */}
         <div className="grid grid-cols-2 gap-3.5">
           <button
@@ -169,6 +252,49 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
               </div>
             </div>
           </button>
+        </div>
+
+        {/* App & Background Theme Manager */}
+        <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/15 text-purple-400 flex items-center justify-center">
+                <Palette className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-white">App Background Theme</h4>
+                <p className="text-xs text-neutral-400">Controls background atmosphere across all user portals</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-mono text-emerald-400 uppercase bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+              {settings.backgroundTheme}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+            {backgroundThemeOptions.map((opt) => {
+              const isSelected = settings.backgroundTheme === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => handleSelectBackgroundTheme(opt.key)}
+                  className={`p-3 rounded-xl border text-left transition-all relative ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-950/30 ring-1 ring-emerald-500/50'
+                      : 'border-[#2A2A2A] bg-[#222222] hover:border-neutral-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className={`w-5 h-5 rounded-md border ${opt.preview}`} />
+                    {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                  </div>
+                  <p className="text-xs font-semibold text-white leading-tight">{opt.name}</p>
+                  <p className="text-[10px] text-neutral-400 mt-0.5 line-clamp-1">{opt.desc}</p>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Notices Quick Action Banner */}

@@ -49,6 +49,13 @@ export interface Notice {
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 export type Language = 'en' | 'kn';
+export type BackgroundTheme = 'default' | 'emerald' | 'navy' | 'slate' | 'mesh';
+
+export interface AppSettings {
+  backgroundTheme: BackgroundTheme;
+  customBackgroundUrl?: string;
+  campusName: string;
+}
 
 export interface StringsDict {
   appBarTitle: string;

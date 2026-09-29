@@ -8,10 +8,13 @@ import {
   UserCheck, 
   Palmtree, 
   Calendar, 
-  Megaphone 
+  Megaphone,
+  Sparkles,
+  RotateCw
 } from 'lucide-react';
 import { storage } from '../../services/storage';
 import { Notice } from '../../types';
+import { aiService } from '../../services/aiService';
 
 interface NoticesScreenProps {
   onBack: () => void;
@@ -20,6 +23,8 @@ interface NoticesScreenProps {
 
 export const NoticesScreen: React.FC<NoticesScreenProps> = ({ onBack, onRefreshBadge }) => {
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [summaries, setSummaries] = useState<Record<string, string>>({});
+  const [summarizingId, setSummarizingId] = useState<string | null>(null);
 
   useEffect(() => {
     const list = storage.getNotices();
@@ -29,7 +34,40 @@ export const NoticesScreen: React.FC<NoticesScreenProps> = ({ onBack, onRefreshB
     // Mark as read
     storage.markNoticesSeen(sorted);
     onRefreshBadge();
+
+    // Fetch latest from backend
+    storage.syncNoticesFromBackend().then(latest => {
+      const sortedLatest = [...latest].sort((a, b) => b.created_at.localeCompare(a.created_at));
+      setNotices(sortedLatest);
+      storage.markNoticesSeen(sortedLatest);
+      onRefreshBadge();
+    });
   }, [onRefreshBadge]);
+
+  const handleSummarizeNotice = async (notice: Notice) => {
+    if (summaries[notice.id]) {
+      // Toggle off if already generated
+      setSummaries(prev => {
+        const next = { ...prev };
+        delete next[notice.id];
+        return next;
+      });
+      return;
+    }
+
+    setSummarizingId(notice.id);
+    try {
+      const summaryText = await aiService.summarizeNotice(notice.title, notice.body || '', 'en');
+      setSummaries(prev => ({ ...prev, [notice.id]: summaryText }));
+    } catch {
+      setSummaries(prev => ({ 
+        ...prev, 
+        [notice.id]: '⚠️ AI summary could not be retrieved at this moment.' 
+      }));
+    } finally {
+      setSummarizingId(null);
+    }
+  };
 
   const categoryConfig: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
     exam: { label: 'EXAM', color: 'text-red-400', bg: 'bg-red-400/15', icon: <FileEdit className="w-3.5 h-3.5" /> },
@@ -100,8 +138,23 @@ export const NoticesScreen: React.FC<NoticesScreenProps> = ({ onBack, onRefreshB
                   <p className="text-xs text-neutral-300 leading-relaxed">{n.body}</p>
                 )}
 
-                {n.link && (
-                  <div className="pt-1">
+                {/* Actions Row */}
+                <div className="pt-2 flex items-center justify-between border-t border-[#252525]">
+                  <button
+                    type="button"
+                    onClick={() => handleSummarizeNotice(n)}
+                    disabled={summarizingId === n.id}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#242424] hover:bg-[#2E2E2E] border border-[#10A37F]/30 text-xs font-semibold text-emerald-400 transition-colors"
+                  >
+                    {summarizingId === n.id ? (
+                      <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                    <span>{summaries[n.id] ? 'Hide AI Summary' : 'AI Summary'}</span>
+                  </button>
+
+                  {n.link && (
                     <a
                       href={n.link}
                       target="_blank"
@@ -111,6 +164,19 @@ export const NoticesScreen: React.FC<NoticesScreenProps> = ({ onBack, onRefreshB
                       <span>View details</span>
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
+                  )}
+                </div>
+
+                {/* AI Summary Card */}
+                {summaries[n.id] && (
+                  <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl text-xs space-y-1.5 text-neutral-200 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-400 text-[11px] uppercase tracking-wider">
+                      <Sparkles className="w-3 h-3" />
+                      <span>AI Key Takeaways</span>
+                    </div>
+                    <div className="whitespace-pre-wrap leading-relaxed text-neutral-300">
+                      {summaries[n.id]}
+                    </div>
                   </div>
                 )}
               </div>

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle2, ChevronRight, Info, Moon, Sun, Monitor } from 'lucide-react';
-import { ThemeMode } from '../../types';
+import { ThemeMode, BackgroundTheme } from '../../types';
+import { storage } from '../../services/storage';
 
 interface SettingsScreenProps {
   currentTheme: ThemeMode;
@@ -15,6 +16,29 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onNavigateAbout,
   onBack,
 }) => {
+  const [bgTheme, setBgTheme] = useState<BackgroundTheme>(() => storage.getSettings().backgroundTheme);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setBgTheme(storage.getSettings().backgroundTheme);
+    };
+    window.addEventListener('cbmu_data_updated', handleUpdate);
+    return () => window.removeEventListener('cbmu_data_updated', handleUpdate);
+  }, []);
+
+  const handleSelectBg = (themeKey: BackgroundTheme) => {
+    setBgTheme(themeKey);
+    storage.saveSettings({ backgroundTheme: themeKey });
+  };
+
+  const bgOptions: Array<{ key: BackgroundTheme; name: string; preview: string }> = [
+    { key: 'default', name: 'Default Onyx', preview: 'bg-black border-neutral-700' },
+    { key: 'emerald', name: 'Mangalore Emerald', preview: 'bg-gradient-to-br from-[#041a12] to-[#010906] border-emerald-500/50' },
+    { key: 'navy', name: 'Midnight Navy', preview: 'bg-gradient-to-br from-[#061226] to-[#02070e] border-blue-500/50' },
+    { key: 'slate', name: 'Graphite Slate', preview: 'bg-gradient-to-br from-[#0f1722] to-[#070a0e] border-slate-500/50' },
+    { key: 'mesh', name: 'Campus Aura Mesh', preview: 'bg-[#080d0b] border-emerald-400/50' },
+  ];
+
   return (
     <div className="w-full h-full flex flex-col bg-black text-white">
       {/* Header */}
@@ -33,7 +57,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <div className="flex-1 overflow-y-auto p-4 max-w-xl mx-auto w-full space-y-6">
         <div>
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 px-1 mb-2.5">
-            Appearance
+            Appearance & Mode
           </h3>
           <div className="space-y-2">
             <button
@@ -42,7 +66,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             >
               <div className="flex items-center gap-3">
                 <Moon className="w-5 h-5 text-neutral-300" />
-                <span className="font-medium text-sm text-white">Dark</span>
+                <span className="font-medium text-sm text-white">Dark Mode</span>
               </div>
               {currentTheme === 'dark' && (
                 <CheckCircle2 className="w-5 h-5 text-[#10A37F]" />
@@ -55,7 +79,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             >
               <div className="flex items-center gap-3">
                 <Sun className="w-5 h-5 text-neutral-300" />
-                <span className="font-medium text-sm text-white">Light</span>
+                <span className="font-medium text-sm text-white">Light Mode</span>
               </div>
               {currentTheme === 'light' && (
                 <CheckCircle2 className="w-5 h-5 text-[#10A37F]" />
@@ -74,6 +98,39 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <CheckCircle2 className="w-5 h-5 text-[#10A37F]" />
               )}
             </button>
+          </div>
+        </div>
+
+        {/* Background Atmosphere & Wallpaper */}
+        <div>
+          <div className="flex items-center justify-between px-1 mb-2.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+              App Background Atmosphere
+            </h3>
+            <span className="text-[10px] text-emerald-400 uppercase font-mono">{bgTheme}</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {bgOptions.map((opt) => {
+              const isSelected = bgTheme === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => handleSelectBg(opt.key)}
+                  className={`p-3 rounded-xl border text-left transition-all relative ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-950/30 ring-1 ring-emerald-500/50'
+                      : 'border-[#2A2A2A] bg-[#1A1A1A] hover:border-neutral-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className={`w-5 h-5 rounded-md border ${opt.preview}`} />
+                    {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                  </div>
+                  <span className="text-xs font-semibold text-white block">{opt.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

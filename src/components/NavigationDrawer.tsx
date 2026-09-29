@@ -9,11 +9,13 @@ import {
   Info, 
   ShieldCheck, 
   Bell,
+  Sparkles,
   X 
 } from 'lucide-react';
 
 export type ScreenType = 
   | 'chat'
+  | 'ai_tutor'
   | 'campus_map' 
   | 'academic_calendar' 
   | 'contact_us' 
@@ -76,6 +78,19 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
         {/* Drawer Items */}
         <div className="flex-1 overflow-y-auto py-2">
           <nav className="space-y-0.5 px-2">
+            <button
+              onClick={() => handleNav('ai_tutor')}
+              className="w-full flex items-center justify-between px-3 py-3 rounded-xl bg-gradient-to-r from-[#10A37F]/15 to-emerald-900/10 hover:from-[#10A37F]/25 hover:to-emerald-900/20 border border-[#10A37F]/30 text-emerald-300 transition-colors text-left font-semibold text-sm mb-1.5"
+            >
+              <div className="flex items-center gap-3.5">
+                <Sparkles className="w-5 h-5 text-[#10A37F]" />
+                <span>AI Study Tutor</span>
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#10A37F]/20 text-emerald-300 border border-[#10A37F]/30">
+                New
+              </span>
+            </button>
+
             <button
               onClick={() => handleNav('campus_map')}
               className="w-full flex items-center gap-3.5 px-3 py-3 rounded-xl hover:bg-[#2A2A2A] text-neutral-200 hover:text-white transition-colors text-left font-medium text-sm"

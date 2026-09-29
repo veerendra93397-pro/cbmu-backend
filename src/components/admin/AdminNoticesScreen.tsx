@@ -12,6 +12,18 @@ export const AdminNoticesScreen: React.FC<AdminNoticesScreenProps> = ({ onBack }
   const [isAdding, setIsAdding] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Sync latest from backend on mount and listen to changes
+  React.useEffect(() => {
+    const refresh = () => setNotices(storage.getNotices());
+    storage.syncNoticesFromBackend().then(latest => setNotices(latest));
+    window.addEventListener('cbmu_data_updated', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('cbmu_data_updated', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
   // Form state
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -72,8 +84,14 @@ export const AdminNoticesScreen: React.FC<AdminNoticesScreenProps> = ({ onBack }
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="font-semibold text-base">Notices Management</h2>
-            <p className="text-[11px] text-neutral-400">{notices.length} active announcements</p>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-base leading-none">Notices Management</h2>
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Auto-synced</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-0.5">{notices.length} active announcements • automatically persists to backend</p>
           </div>
         </div>
 

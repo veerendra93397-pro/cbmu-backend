@@ -3,7 +3,7 @@ import { Language, CampusEntity, CourseFee } from '../types';
 
 export interface ChatResponse {
   answer: string;
-  source: 'remote' | 'local';
+  source: 'remote' | 'local' | 'gemini';
 }
 
 function calculateSimilarity(s1: string, s2: string): number {
@@ -32,34 +32,33 @@ function calculateSimilarity(s1: string, s2: string): number {
   return (longerLength - costs[s2.length]) / longerLength;
 }
 
-export async function processChatMessage(message: string, lang: Language): Promise<ChatResponse> {
+export async function processChatMessage(
+  message: string, 
+  lang: Language, 
+  history: { text: string; isUser: boolean }[] = []
+): Promise<ChatResponse> {
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
 
-  // Try live backend first with a fast timeout
+  // 1. Try server-side Gemini AI with dynamic campus context
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-    const res = await fetch("https://cbmu-backend.onrender.com/chat", {
+    const aiRes = await fetch("/api/ai/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: trimmed, lang }),
-      signal: controller.signal,
+      body: JSON.stringify({ message: trimmed, lang, history }),
     });
-    clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const data = await res.json();
+    if (aiRes.ok) {
+      const data = await aiRes.json();
       if (data && data.answer) {
-        return { answer: data.answer, source: 'remote' };
+        return { answer: data.answer, source: 'gemini' };
       }
     }
   } catch {
-    // Backend asleep or offline — fallback to robust local knowledge engine
+    // If server AI route fails or is starting up, proceed with robust local campus engine
   }
 
-  // Local knowledge engine matching
+  // 2. Local knowledge engine matching with latest admin-edited data
   const departments = storage.getDepartments();
   const fees = storage.getFees();
 

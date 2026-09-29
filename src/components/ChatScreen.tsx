@@ -392,7 +392,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     setIsLoading(true);
 
     try {
-      const response = await processChatMessage(textToSend, lang);
+      const historyContext = updatedMessages.slice(-6).map(m => ({ text: m.text, isUser: m.isUser }));
+      const response = await processChatMessage(textToSend, lang, historyContext);
       const botMsg: Message = {
         id: 'bot-' + Date.now(),
         text: response.answer,
@@ -477,9 +478,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   ];
 
   return (
-    <div className="flex flex-col h-full w-full bg-black text-white">
+    <div className="flex flex-col h-full w-full bg-transparent text-white">
       {/* AppBar */}
-      <header className="px-3 bg-[#1A1A1A] border-b border-[#2A2A2A] z-20 shrink-0">
+      <header className="px-3 bg-[#1A1A1A]/95 backdrop-blur-md border-b border-[#2A2A2A] z-20 shrink-0">
         <div className="h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <button
@@ -494,9 +495,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               <div className="w-8 h-8 rounded-lg bg-gradient-to-b from-[#10A37F] to-[#1A7F64] flex items-center justify-center shadow-xs">
                 <GraduationCap className="w-4.5 h-4.5 text-white" />
               </div>
-              <h1 className="font-semibold text-base tracking-tight text-white select-none">
-                {t('appBarTitle')}
-              </h1>
+              <div>
+                <h1 className="font-semibold text-base tracking-tight text-white select-none leading-none">
+                  {t('appBarTitle')}
+                </h1>
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold tracking-wider uppercase mt-0.5">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span>AI Powered</span>
+                </span>
+              </div>
             </div>
           </div>
 
