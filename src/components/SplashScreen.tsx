@@ -21,7 +21,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   }, [onFinish]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black select-none">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#141414] select-none">
       <div
         className={`flex flex-col items-center transition-all duration-700 ease-out transform ${
           fadedIn ? 'opacity-100 scale-100' : 'opacity-0 scale-90'

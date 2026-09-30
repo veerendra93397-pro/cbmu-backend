@@ -115,7 +115,7 @@ export const AdminDepartmentsScreen: React.FC<AdminDepartmentsScreenProps> = ({ 
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-black text-white">
+    <div className="w-full h-full flex flex-col bg-transparent text-white">
       {/* Header */}
       <div className="h-14 px-4 bg-[#1A1A1A] border-b border-[#2A2A2A] flex items-center justify-between">
         <div className="flex items-center gap-3">

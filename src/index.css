@@ -25,3 +25,248 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(120, 120, 120, 0.45);
 }
+
+/* =========================================================
+   Light Mode Theme Overrides (Applied when html has .light)
+   ========================================================= */
+html.light body {
+  background-color: #F7F7F5;
+  color: #111827;
+}
+
+/* Surface Backgrounds */
+html.light .bg-\[\#141414\] {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .bg-\[\#1A1A1A\],
+html.light .bg-\[\#1E1E1E\] {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-\[\#1A1A1A\]\/95 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+html.light .bg-\[\#222222\],
+html.light .bg-\[\#242424\],
+html.light .bg-\[\#252525\] {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .bg-\[\#2A2A2A\] {
+  background-color: #EFEFED !important;
+}
+
+html.light .bg-\[\#303030\],
+html.light .bg-\[\#333333\] {
+  background-color: #E5E7EB !important;
+}
+
+/* Hover & Focus Surface States */
+html.light .hover\:bg-\[\#222222\]:hover,
+html.light .hover\:bg-\[\#252525\]:hover,
+html.light .hover\:bg-\[\#2A2A2A\]:hover {
+  background-color: #E5E7EB !important;
+}
+
+html.light .hover\:bg-\[\#2E2E2E\]:hover,
+html.light .hover\:bg-\[\#2F2F2F\]:hover,
+html.light .hover\:bg-\[\#303030\]:hover,
+html.light .hover\:bg-\[\#333333\]:hover,
+html.light .hover\:bg-\[\#3D3D3D\]:hover {
+  background-color: #D1D5DB !important;
+}
+
+html.light .focus\:bg-\[\#2A2A2A\]:focus {
+  background-color: #FFFFFF !important;
+}
+
+/* Tinted Card & Chip Surfaces */
+html.light .bg-emerald-950\/30,
+html.light .bg-emerald-950\/40,
+html.light .bg-emerald-950\/60 {
+  background-color: rgba(16, 163, 127, 0.12) !important;
+}
+
+html.light .hover\:bg-emerald-900\/50:hover {
+  background-color: rgba(16, 163, 127, 0.2) !important;
+}
+
+html.light .bg-amber-950\/40 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+
+html.light .hover\:bg-amber-900\/50:hover {
+  background-color: rgba(245, 158, 11, 0.2) !important;
+}
+
+html.light .bg-cyan-950\/40 {
+  background-color: rgba(6, 182, 212, 0.12) !important;
+}
+
+html.light .hover\:bg-cyan-900\/50:hover {
+  background-color: rgba(6, 182, 212, 0.2) !important;
+}
+
+html.light .bg-purple-950\/40 {
+  background-color: rgba(168, 85, 247, 0.12) !important;
+}
+
+html.light .bg-red-950\/40,
+html.light .bg-\[\#3A2222\] {
+  background-color: #FEF2F2 !important;
+  border-color: #FECACA !important;
+}
+
+/* Gradients */
+html.light .from-emerald-950\/40 {
+  --tw-gradient-from: rgba(16, 163, 127, 0.12) !important;
+}
+
+html.light .via-\[\#1A1A1A\] {
+  --tw-gradient-via: #FFFFFF !important;
+}
+
+html.light .to-\[\#1A1A1A\] {
+  --tw-gradient-to: #FFFFFF !important;
+}
+
+html.light .to-emerald-900\/10 {
+  --tw-gradient-to: rgba(16, 163, 127, 0.06) !important;
+}
+
+/* Borders */
+html.light .border-\[\#252525\],
+html.light .border-\[\#2A2A2A\],
+html.light .border-\[\#2E2E2E\],
+html.light .border-\[\#333333\],
+html.light .border-\[\#3A3A3A\],
+html.light .border-neutral-700 {
+  border-color: #E5E7EB !important;
+}
+
+html.light .border-\[\#2A2A2A\]\/60,
+html.light .border-\[\#333333\]\/60 {
+  border-color: rgba(229, 231, 235, 0.85) !important;
+}
+
+html.light .hover\:border-neutral-700:hover,
+html.light .hover\:border-neutral-600:hover {
+  border-color: #9CA3AF !important;
+}
+
+/* Typography & Text Colors */
+html.light .text-white {
+  color: #111827 !important;
+}
+
+/* Preserve white text on primary emerald / red / dark-overlay buttons & badges */
+html.light .bg-\[\#10A37F\].text-white,
+html.light .bg-\[\#10A37F\] .text-white,
+html.light .from-\[\#10A37F\].text-white,
+html.light .from-\[\#10A37F\] .text-white,
+html.light .bg-red-600.text-white,
+html.light .bg-red-600 .text-white,
+html.light .from-red-600 .text-white,
+html.light .bg-black\/40.text-white\/70,
+html.light .hover\:bg-\[\#10A37F\]:hover {
+  color: #FFFFFF !important;
+}
+
+html.light .text-neutral-100 {
+  color: #111827 !important;
+}
+
+html.light .text-neutral-200 {
+  color: #1F2937 !important;
+}
+
+html.light .text-neutral-300 {
+  color: #374151 !important;
+}
+
+html.light .text-neutral-400 {
+  color: #4B5563 !important;
+}
+
+html.light .text-neutral-500 {
+  color: #6B7280 !important;
+}
+
+html.light .hover\:text-white:hover {
+  color: #111827 !important;
+}
+
+html.light .group:hover .group-hover\:text-white {
+  color: #111827 !important;
+}
+
+/* Semantic Accent Text Colors for Light Mode Contrast */
+html.light .text-emerald-300,
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-amber-300,
+html.light .text-amber-400 {
+  color: #B45309 !important;
+}
+
+html.light .text-cyan-300,
+html.light .text-cyan-400 {
+  color: #0E7490 !important;
+}
+
+html.light .text-purple-400 {
+  color: #6D28D9 !important;
+}
+
+html.light .text-blue-400 {
+  color: #1D4ED8 !important;
+}
+
+html.light .text-red-100,
+html.light .text-red-200,
+html.light .text-red-300,
+html.light .text-red-400 {
+  color: #DC2626 !important;
+}
+
+/* Markdown Prose in Light Mode */
+html.light .prose-invert {
+  --tw-prose-body: #1F2937 !important;
+  --tw-prose-headings: #111827 !important;
+  --tw-prose-lead: #374151 !important;
+  --tw-prose-links: #0D8A6A !important;
+  --tw-prose-bold: #111827 !important;
+  --tw-prose-counters: #4B5563 !important;
+  --tw-prose-bullets: #10A37F !important;
+  --tw-prose-hr: #E5E7EB !important;
+  --tw-prose-quotes: #111827 !important;
+  --tw-prose-quote-borders: #10A37F !important;
+  --tw-prose-captions: #4B5563 !important;
+  --tw-prose-code: #0F172A !important;
+  --tw-prose-pre-code: #F8FAFC !important;
+  --tw-prose-pre-bg: #1E293B !important;
+  --tw-prose-th-borders: #D1D5DB !important;
+  --tw-prose-td-borders: #E5E7EB !important;
+  color: #1F2937 !important;
+}
+
+html.light .prose-invert a {
+  color: #0D8A6A !important;
+}
+
+html.light .prose-invert h1,
+html.light .prose-invert h2,
+html.light .prose-invert h3,
+html.light .prose-invert h4,
+html.light .prose-invert strong {
+  color: #111827 !important;
+}
+
+html.light .prose-invert p,
+html.light .prose-invert li {
+  color: #1F2937 !important;
+}

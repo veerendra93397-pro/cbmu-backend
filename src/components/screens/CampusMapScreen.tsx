@@ -22,7 +22,12 @@ export const CampusMapScreen: React.FC<CampusMapScreenProps> = ({ onBack }) => {
         zoomControl: true,
       });
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      const isLight = document.documentElement.classList.contains('light');
+      const tileUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
+      L.tileLayer(tileUrl, {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 20,
@@ -111,7 +116,7 @@ export const CampusMapScreen: React.FC<CampusMapScreenProps> = ({ onBack }) => {
   }, []);
 
   return (
-    <div className="relative w-full h-full flex flex-col bg-black text-white">
+    <div className="relative w-full h-full flex flex-col bg-transparent text-white">
       {/* Header */}
       <div className="h-14 px-4 bg-[#1A1A1A] border-b border-[#2A2A2A] flex items-center gap-3 z-10">
         <button

@@ -3,7 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import path from 'path';
 import fs from 'fs';
-import { DEFAULT_CAMPUS_DATA, DEFAULT_COURSE_FEES, DEFAULT_NOTICES } from './src/data/campusData';
+import { DEFAULT_CAMPUS_DATA, DEFAULT_COURSE_FEES, DEFAULT_NOTICES } from './src/data/campusData.ts';
 
 const app = express();
 const port = 3000;
@@ -61,7 +61,7 @@ let backendSettings = readBackendData(SETTINGS_FILE, DEFAULT_SETTINGS);
 
 // Initialize Gemini SDK with User-Agent telemetry
 const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
+  apiKey: process.env.GEMINI_API_KEY || 'unconfigured',
   httpOptions: {
     headers: {
       'User-Agent': 'aistudio-build',
@@ -484,7 +484,7 @@ async function startServer() {
     const distPath = path.resolve('dist');
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
-      app.get('*', (req, res) => {
+      app.get('/{*splat}', (req, res) => {
         res.sendFile(path.resolve(distPath, 'index.html'));
       });
     }

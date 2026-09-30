@@ -70,7 +70,7 @@ export const AITutorScreen: React.FC<AITutorScreenProps> = ({ onBack, lang }) =>
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-black text-white">
+    <div className="flex flex-col h-full w-full bg-transparent text-white">
       {/* Header */}
       <header className="h-14 px-4 bg-[#1A1A1A] border-b border-[#2A2A2A] flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-3">

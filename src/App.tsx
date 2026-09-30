@@ -85,26 +85,33 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true
+  );
+
+  const isLightMode = themeMode === 'light' || (themeMode === 'system' && !systemPrefersDark);
+
+  // Listen to OS color-scheme changes when in system mode
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
   // Update HTML class / color scheme when theme changes
   useEffect(() => {
     const root = document.documentElement;
-    if (themeMode === 'light') {
+    if (isLightMode) {
       root.classList.remove('dark');
       root.classList.add('light');
-    } else if (themeMode === 'dark') {
+      root.style.colorScheme = 'light';
+    } else {
       root.classList.remove('light');
       root.classList.add('dark');
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) {
-        root.classList.add('dark');
-        root.classList.remove('light');
-      } else {
-        root.classList.add('light');
-        root.classList.remove('dark');
-      }
+      root.style.colorScheme = 'dark';
     }
-  }, [themeMode]);
+  }, [isLightMode]);
 
   const handleThemeChange = (mode: ThemeMode) => {
     setThemeMode(mode);
@@ -258,7 +265,21 @@ export const App: React.FC = () => {
   };
 
   const getBackgroundClass = () => {
-    if (themeMode === 'light') return 'bg-[#F7F7F5] text-neutral-900';
+    if (isLightMode) {
+      switch (settings.backgroundTheme) {
+        case 'emerald':
+          return 'bg-gradient-to-br from-[#ECFDF5] via-[#F0FDF4] to-[#F7F7F5] text-neutral-900';
+        case 'navy':
+          return 'bg-gradient-to-br from-[#EFF6FF] via-[#F0F9FF] to-[#F8FAFC] text-neutral-900';
+        case 'slate':
+          return 'bg-gradient-to-br from-[#F1F5F9] via-[#F8FAFC] to-[#E2E8F0] text-neutral-900';
+        case 'mesh':
+          return 'bg-[#F4FAF7] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(16,163,127,0.18),rgba(255,255,255,0))] text-neutral-900';
+        case 'default':
+        default:
+          return 'bg-[#F7F7F5] text-neutral-900';
+      }
+    }
     switch (settings.backgroundTheme) {
       case 'emerald':
         return 'bg-gradient-to-br from-[#03150e] via-[#051c13] to-[#010906] text-white';

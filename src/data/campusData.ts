@@ -1,4 +1,4 @@
-import { CampusEntity, CourseFee, Notice, StringsDict } from '../types';
+import type { CampusEntity, CourseFee, Notice, StringsDict } from '../types';
 
 export const CAMPUS_CENTER_LAT = 12.8157556;
 export const CAMPUS_CENTER_LNG = 74.9240750;
