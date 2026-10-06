@@ -478,14 +478,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   ];
 
   return (
-    <div className="flex flex-col h-full w-full bg-transparent text-white">
+    <div className="flex flex-col h-full w-full bg-transparent text-slate-900 dark:text-white transition-colors duration-200">
       {/* AppBar */}
-      <header className="px-3 bg-[#1A1A1A]/95 backdrop-blur-md border-b border-[#2A2A2A] z-20 shrink-0">
+      <header className="px-3 bg-white/95 dark:bg-[#1A1A1A]/95 backdrop-blur-md border-b border-slate-200 dark:border-[#2A2A2A] z-20 shrink-0">
         <div className="h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <button
               onClick={onOpenDrawer}
-              className="p-2 rounded-lg hover:bg-[#2A2A2A] text-neutral-300 hover:text-white transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-600 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white transition-colors"
               title="Menu"
             >
               <Menu className="w-5 h-5" />
@@ -496,10 +496,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 <GraduationCap className="w-4.5 h-4.5 text-white" />
               </div>
               <div>
-                <h1 className="font-semibold text-base tracking-tight text-white select-none leading-none">
+                <h1 className="font-semibold text-base tracking-tight text-slate-900 dark:text-white select-none leading-none">
                   {t('appBarTitle')}
                 </h1>
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold tracking-wider uppercase mt-0.5">
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold tracking-wider uppercase mt-0.5">
                   <Sparkles className="w-2.5 h-2.5" />
                   <span>AI Powered</span>
                 </span>
@@ -514,7 +514,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               className={`p-2 rounded-lg transition-colors ${
                 isSearching
                   ? 'bg-[#10A37F]/20 text-[#10A37F]'
-                  : 'hover:bg-[#2A2A2A] text-neutral-400 hover:text-white'
+                  : 'hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-500 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white'
               }`}
               title={t('searchHistory')}
             >
@@ -528,7 +528,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 className={`p-2 rounded-lg transition-colors ${
                   showExportMenu
                     ? 'bg-[#10A37F]/20 text-[#10A37F]'
-                    : 'hover:bg-[#2A2A2A] text-neutral-400 hover:text-white'
+                    : 'hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-500 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
                 title={t('exportChat')}
               >
@@ -536,22 +536,22 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               </button>
 
               {showExportMenu && (
-                <div className="absolute right-0 mt-1.5 w-52 rounded-xl bg-[#222222] border border-[#333333] shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                  <div className="px-3 py-1.5 border-b border-[#333333] text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+                <div className="absolute right-0 mt-1.5 w-52 rounded-xl bg-white dark:bg-[#222222] border border-slate-200 dark:border-[#333333] shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-800 dark:text-white">
+                  <div className="px-3 py-1.5 border-b border-slate-200 dark:border-[#333333] text-[11px] font-semibold text-slate-500 dark:text-neutral-400 uppercase tracking-wider">
                     {t('exportChat')}
                   </div>
                   <button
                     onClick={handleExportText}
-                    className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-[#2A2A2A] hover:text-white flex items-center gap-2.5 transition-colors"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-neutral-200 dark:hover:bg-[#2A2A2A] dark:hover:text-white flex items-center gap-2.5 transition-colors"
                   >
-                    <FileText className="w-4 h-4 text-emerald-400" />
+                    <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     <span>{t('exportText')}</span>
                   </button>
                   <button
                     onClick={handleExportPDF}
-                    className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-[#2A2A2A] hover:text-white flex items-center gap-2.5 transition-colors"
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-neutral-200 dark:hover:bg-[#2A2A2A] dark:hover:text-white flex items-center gap-2.5 transition-colors"
                   >
-                    <Printer className="w-4 h-4 text-cyan-400" />
+                    <Printer className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                     <span>{t('exportPdf')}</span>
                   </button>
                 </div>
@@ -561,7 +561,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             {/* Language Toggle Button */}
             <button
               onClick={onToggleLang}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2A2A2A] hover:bg-[#333333] transition-colors text-xs font-semibold text-white shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-[#2A2A2A] dark:hover:bg-[#333333] transition-colors text-xs font-semibold text-slate-800 dark:text-white shadow-xs border border-slate-200 dark:border-transparent"
               title="Toggle Language"
             >
               <Languages className="w-3.5 h-3.5 text-[#10A37F]" />
@@ -571,7 +571,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             {/* Clear Chat Button */}
             <button
               onClick={() => setShowClearConfirm(true)}
-              className="p-2 rounded-lg hover:bg-[#2A2A2A] text-neutral-400 hover:text-white transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-500 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white transition-colors"
               title={t('clearTitle')}
             >
               <Trash2 className="w-4.5 h-4.5" />
@@ -581,7 +581,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
         {/* Collapsible Search Input Bar */}
         {isSearching && (
-          <div className="pb-3 pt-1 border-t border-[#2A2A2A]/60 flex items-center gap-2 animate-in slide-in-from-top-2 duration-150">
+          <div className="pb-3 pt-1 border-t border-slate-200 dark:border-[#2A2A2A]/60 flex items-center gap-2 animate-in slide-in-from-top-2 duration-150">
             <div className="flex-1 relative flex items-center">
               <Search className="w-4 h-4 text-neutral-400 absolute left-3 pointer-events-none" />
               <input
@@ -646,10 +646,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             <div className="w-18 h-18 rounded-full bg-gradient-to-b from-[#10A37F] to-[#1A7F64] flex items-center justify-center shadow-lg shadow-[#10A37F]/20 mb-5">
               <GraduationCap className="w-9 h-9 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
               {t('emptyTitle')}
             </h2>
-            <p className="text-sm text-neutral-400 max-w-sm mb-6">
+            <p className="text-sm text-slate-500 dark:text-neutral-400 max-w-sm mb-6">
               {t('emptySubtitle')}
             </p>
 
@@ -659,7 +659,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 <button
                   key={idx}
                   onClick={() => handleSendMessage(p.query)}
-                  className="px-3.5 py-1.5 rounded-full bg-[#1A1A1A] hover:bg-[#2A2A2A] border border-[#2A2A2A] text-xs font-medium text-neutral-300 hover:text-white transition-all active:scale-95 flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 rounded-full bg-white dark:bg-[#1A1A1A] hover:bg-slate-100 dark:hover:bg-[#2A2A2A] border border-slate-200 dark:border-[#2A2A2A] text-xs font-medium text-slate-700 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
                 >
                   <Sparkles className="w-3 h-3 text-[#10A37F]" />
                   <span>{p.label}</span>
@@ -693,7 +693,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 <div className={`flex flex-col ${msg.isUser ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-[78%]`}>
                   {/* Photo if present */}
                   {imageUrl && (
-                    <div className="mb-2 rounded-2xl overflow-hidden border border-[#2A2A2A] bg-[#1A1A1A] max-w-[280px]">
+                    <div className="mb-2 rounded-2xl overflow-hidden border border-slate-200 dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] max-w-[280px]">
                       <img
                         src={imageUrl}
                         alt="Campus location"
@@ -701,7 +701,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                         loading="lazy"
                       />
                       {imageAttribution && (
-                        <p className="p-2 text-[10px] text-neutral-400 leading-tight">
+                        <p className="p-2 text-[10px] text-slate-500 dark:text-neutral-400 leading-tight">
                           {imageAttribution}
                         </p>
                       )}
@@ -714,14 +714,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                       msg.isUser
                         ? 'bg-[#10A37F] text-white rounded-tr-xs'
                         : msg.isError
-                        ? 'bg-[#3A2222] border border-red-900/60 text-red-100 rounded-tl-xs'
-                        : 'bg-[#2A2A2A] text-neutral-100 rounded-tl-xs'
+                        ? 'bg-red-50 dark:bg-[#3A2222] border border-red-200 dark:border-red-900/60 text-red-900 dark:text-red-100 rounded-tl-xs'
+                        : 'bg-white dark:bg-[#2A2A2A] border border-slate-200 dark:border-transparent text-slate-900 dark:text-neutral-100 rounded-tl-xs shadow-xs'
                     }`}
                   >
                     {msg.isUser ? (
                       <p className="whitespace-pre-wrap">{cleanText}</p>
                     ) : (
-                      <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-headings:text-white prose-a:text-[#6FE3C4] prose-a:underline hover:prose-a:text-emerald-300">
+                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-headings:text-slate-900 dark:prose-headings:text-white prose-a:text-emerald-600 dark:prose-a:text-[#6FE3C4] prose-a:underline hover:prose-a:text-emerald-700">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {cleanText}
                         </ReactMarkdown>
@@ -764,10 +764,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                           const firstLine = cleanText.split('\n')[0].replace(/[*#]/g, '').trim() || 'Location';
                           onOpenLocationMap(lat, lng, firstLine);
                         }}
-                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#2A2A2A] hover:bg-[#333333] border border-[#10A37F] text-[#10A37F] text-xs font-semibold transition-all active:scale-95"
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#2A2A2A] dark:hover:bg-[#333333] border border-[#10A37F] text-[#10A37F] text-xs font-semibold transition-all active:scale-95"
                       >
                         <Map className="w-4 h-4" />
-                        <span>View in App</span>
+                        <span>Navigate in App</span>
                       </button>
 
                       <button
@@ -792,8 +792,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             <div className="w-8 h-8 rounded-lg bg-gradient-to-b from-[#10A37F] to-[#1A7F64] flex items-center justify-center shrink-0 shadow-xs">
               <Bot className="w-4.5 h-4.5 text-white animate-pulse" />
             </div>
-            <div className="bg-[#2A2A2A] rounded-2xl rounded-tl-xs px-4 py-3 border border-[#333333]/60 flex items-center gap-2.5 shadow-sm">
-              <span className="text-xs font-medium text-neutral-300">
+            <div className="bg-white dark:bg-[#2A2A2A] rounded-2xl rounded-tl-xs px-4 py-3 border border-slate-200 dark:border-[#333333]/60 flex items-center gap-2.5 shadow-xs">
+              <span className="text-xs font-medium text-slate-600 dark:text-neutral-300">
                 {t('thinking')}
               </span>
               <div className="flex items-center gap-1.5 py-0.5">
@@ -809,7 +809,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       </main>
 
       {/* Input Composer */}
-      <footer className="p-3 sm:p-4 bg-[#1A1A1A] border-t border-[#2A2A2A] shrink-0 space-y-2">
+      <footer className="p-3 sm:p-4 bg-white/95 dark:bg-[#1A1A1A] border-t border-slate-200 dark:border-[#2A2A2A] shrink-0 space-y-2">
         {/* Voice listening status banner */}
         {isListening && (
           <div className="max-w-3xl mx-auto flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#10A37F]/10 border border-[#10A37F]/30 animate-pulse text-xs text-[#10A37F]">
@@ -822,7 +822,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 {t('voiceListening') || 'Listening...'} ({lang === 'kn' ? 'ಕನ್ನಡ' : 'English'})
               </span>
               {interimTranscript && (
-                <span className="text-white/80 italic line-clamp-1 max-w-xs">
+                <span className="text-slate-700 dark:text-white/80 italic line-clamp-1 max-w-xs">
                   "{interimTranscript}"
                 </span>
               )}
@@ -830,7 +830,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             <button
               type="button"
               onClick={toggleVoiceRecording}
-              className="text-xs px-2 py-0.5 rounded-md bg-[#10A37F]/20 hover:bg-[#10A37F]/30 text-white font-medium transition-colors"
+              className="text-xs px-2 py-0.5 rounded-md bg-[#10A37F]/20 hover:bg-[#10A37F]/30 text-emerald-800 dark:text-white font-medium transition-colors"
             >
               {t('voiceStop') || 'Stop'}
             </button>
@@ -839,12 +839,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
         {/* Speech Error Banner */}
         {speechError && (
-          <div className="max-w-3xl mx-auto px-3 py-1.5 rounded-xl bg-red-950/40 border border-red-800/40 text-xs text-red-300 flex items-center justify-between">
+          <div className="max-w-3xl mx-auto px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40 text-xs text-red-700 dark:text-red-300 flex items-center justify-between">
             <span>{speechError}</span>
             <button
               type="button"
               onClick={() => setSpeechError(null)}
-              className="ml-2 text-red-200 hover:text-white font-bold"
+              className="ml-2 text-red-600 dark:text-red-200 hover:text-red-800 font-bold"
             >
               ✕
             </button>
@@ -859,20 +859,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               type="button"
               onClick={() => handleSendMessage(chip.query)}
               disabled={isLoading}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all active:scale-95 shadow-xs border ${
-                idx === 0
-                  ? 'bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border-emerald-500/30'
-                  : idx === 1
-                  ? 'bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border-amber-500/30'
-                  : idx === 2
-                  ? 'bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border-cyan-500/30'
-                  : 'bg-[#242424] hover:bg-[#2F2F2F] text-neutral-300 hover:text-white border-[#3A3A3A]'
-              }`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all active:scale-95 shadow-xs border bg-slate-100 hover:bg-slate-200 dark:bg-[#242424] dark:hover:bg-[#2F2F2F] text-slate-700 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-[#3A3A3A]"
             >
-              {idx === 0 && <Award className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-              {idx === 1 && <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-              {idx === 2 && <Clock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
-              {idx === 3 && <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
+              {idx === 0 && <Award className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+              {idx === 1 && <MapPin className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />}
+              {idx === 2 && <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400 shrink-0" />}
+              {idx === 3 && <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />}
               {idx > 3 && <Sparkles className="w-3 h-3 text-[#10A37F] shrink-0" />}
               <span>{chip.label}</span>
             </button>
@@ -894,7 +886,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-95 ${
               isListening
                 ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 animate-pulse'
-                : 'bg-[#2A2A2A] hover:bg-[#333333] text-neutral-300 hover:text-white'
+                : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#2A2A2A] dark:hover:bg-[#333333] text-slate-700 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white'
             }`}
             title={isListening ? (t('voiceStop') || 'Stop listening') : (t('voiceStart') || 'Voice to text')}
           >
@@ -905,7 +897,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             )}
           </button>
 
-          <div className="flex-1 bg-[#2A2A2A] rounded-2xl px-4 py-2.5 flex items-center focus-within:ring-2 focus-within:ring-[#10A37F]/50 transition-all">
+          <div className="flex-1 bg-slate-100 dark:bg-[#2A2A2A] border border-slate-200 dark:border-transparent rounded-2xl px-4 py-2.5 flex items-center focus-within:ring-2 focus-within:ring-[#10A37F]/50 transition-all shadow-xs">
             <input
               ref={inputRef}
               type="text"
@@ -913,10 +905,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               onChange={(e) => setInputText(e.target.value)}
               placeholder={isListening ? (t('voiceListening') || 'Listening...') : t('hint')}
               disabled={isLoading}
-              className="w-full bg-transparent text-sm text-white placeholder-neutral-400 focus:outline-hidden"
+              className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-400 focus:outline-hidden"
             />
             {interimTranscript && !inputText && (
-              <span className="text-sm text-neutral-400 italic pointer-events-none truncate ml-1">
+              <span className="text-sm text-slate-400 dark:text-neutral-400 italic pointer-events-none truncate ml-1">
                 {interimTranscript}
               </span>
             )}
@@ -935,15 +927,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
       {/* Clear Chat Confirmation Modal */}
       {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 max-w-xs w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
-            <h3 className="font-bold text-base text-white">{t('clearTitle')}</h3>
-            <p className="text-xs text-neutral-400 leading-relaxed">{t('clearBody')}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2A2A2A] rounded-2xl p-5 max-w-xs w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{t('clearTitle')}</h3>
+            <p className="text-xs text-slate-600 dark:text-neutral-400 leading-relaxed">{t('clearBody')}</p>
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setShowClearConfirm(false)}
-                className="px-4 py-2 rounded-xl bg-[#2A2A2A] hover:bg-[#333333] text-neutral-300 text-xs font-semibold"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#2A2A2A] dark:hover:bg-[#333333] text-slate-700 dark:text-neutral-300 text-xs font-semibold"
               >
                 {t('cancel')}
               </button>

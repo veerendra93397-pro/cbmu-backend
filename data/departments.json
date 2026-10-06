@@ -113,7 +113,9 @@
       "Statistics"
     ],
     "verified": true,
-    "note": "The department list is confirmed from the official site."
+    "note": "The department list is confirmed from the official site.",
+    "lat": 12.8184,
+    "lng": 74.9288
   },
   "applied botany department": {
     "key": "applied botany department",

@@ -40,7 +40,8 @@ export async function processChatMessage(
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
 
-  // 1. Try server-side Gemini AI with dynamic campus context
+  // 1. Try server-side AI (Groq or Gemini)
+  let serverFallbackAnswer: string | null = null;
   try {
     const aiRes = await fetch("/api/ai/chat", {
       method: "POST",
@@ -51,7 +52,11 @@ export async function processChatMessage(
     if (aiRes.ok) {
       const data = await aiRes.json();
       if (data && data.answer) {
-        return { answer: data.answer, source: 'gemini' };
+        // Return immediately if answered by active LLM (Groq or Gemini)
+        if (data.source === 'groq' || data.source === 'gemini') {
+          return { answer: data.answer, source: data.source };
+        }
+        serverFallbackAnswer = data.answer;
       }
     }
   } catch {
@@ -257,16 +262,23 @@ export async function processChatMessage(
     };
   }
 
-  // 5. Friendly fallback response
+  // 5. Friendly fallback response (use server synthesis if available, else local guide)
+  if (serverFallbackAnswer) {
+    return {
+      answer: serverFallbackAnswer,
+      source: 'remote'
+    };
+  }
+
   if (lang === 'kn') {
     return {
-      answer: `ನನಗೆ "${trimmed}" ಬಗ್ಗೆ ನಿಖರವಾದ ಮಾಹಿತಿ ಸಿಗಲಿಲ್ಲ. \n\nನೀವು ಇವುಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು:\n• **ವಿಭಾಗಗಳು**: ಗಣಕ ವಿಜ್ಞಾನ (CS/MCA), ಭೌತಶಾಸ್ತ್ರ, ರಸಾಯನಶಾಸ್ತ್ರ, ಎಂಬಿಎ, ವಾಣಿಜ್ಯ\n• **ಶುಲ್ಕ**: "MCA fee", "MBA fee", "UG fee"\n• **ಕಚೇರಿಗಳು**: ಕುಲಪತಿಗಳ ಕಚೇರಿ (VC), ಕುಲಸಚಿವರು, ಪರೀಕ್ಷಾ ವಿಭಾಗ\n• **ಸೌಲಭ್ಯಗಳು**: ಪುರುಷರ ಹಾಸ್ಟೆಲ್, ಮಹಿಳೆಯರ ಹಾಸ್ಟೆಲ್, ಗ್ರಂಥಾಲಯ, ಬ್ಯಾಂಕ್`,
+      answer: `ನನಗೆ "${trimmed}" ಬಗ್ಗೆ ನಿಖರವಾದ ಮಾಹಿತಿ ಸಿಗಲಿಲ್ಲ. \n\nನೀವು ಇವುಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು:\n• **ವಿಭಾಗಗಳು**: ವಿಜ್ಞಾನ ಬ್ಲಾಕ್ (Science Block), ಗಣಕ ವಿಜ್ಞಾನ (CS/MCA), ಭೌತಶಾಸ್ತ್ರ, ರಸಾಯನಶಾಸ್ತ್ರ, ಎಂಬಿಎ\n• **ಶುಲ್ಕ**: "MCA fee", "MBA fee", "UG fee"\n• **ಕಚೇರಿಗಳು**: ಕುಲಪತಿಗಳ ಕಚೇರಿ (VC), ಕುಲಸಚಿವರು, ಪರೀಕ್ಷಾ ವಿಭಾಗ\n• **ಸೌಲಭ್ಯಗಳು**: ಪುರುಷರ ಹಾಸ್ಟೆಲ್, ಮಹಿಳೆಯರ ಹಾಸ್ಟೆಲ್, ಗ್ರಂಥಾಲಯ, ಬ್ಯಾಂಕ್`,
       source: 'local'
     };
   }
 
   return {
-    answer: `I couldn't find a direct record matching "${trimmed}".\n\nTry asking about:\n• **Departments**: Computer Science (MCA), Physics, Chemistry, MBA, Mathematics, Commerce\n• **Fee Structures**: "MCA fee", "MBA fee", "UG fee", "PG fees"\n• **Administration**: Vice Chancellor, Registrar, Examination Section, Migration Certificate\n• **Campus Facilities**: Men's Hostel, Women's Hostel, Library, Health Centre, Main Gate`,
+    answer: `I couldn't find a direct record matching "${trimmed}".\n\nTry asking about:\n• **Departments & Buildings**: Science Block, Computer Science (MCA), Physics, Chemistry, MBA\n• **Fee Structures**: "MCA fee", "MBA fee", "UG fee", "PG fees"\n• **Administration**: Vice Chancellor, Registrar, Examination Section, Migration Certificate\n• **Campus Facilities**: Men's Hostel, Women's Hostel, Central Library, Health Centre`,
     source: 'local'
   };
 }

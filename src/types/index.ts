@@ -42,9 +42,11 @@ export interface Notice {
   id: string;
   title: string;
   body?: string;
-  category: 'general' | 'exam' | 'fee' | 'admission' | 'holiday' | 'event';
+  category: 'general' | 'exam' | 'fee' | 'admission' | 'holiday' | 'event' | 'emergency';
   link?: string;
   created_at: string;
+  is_emergency?: boolean;
+  priority?: 'normal' | 'emergency';
 }
 
 export type ThemeMode = 'dark' | 'light' | 'system';

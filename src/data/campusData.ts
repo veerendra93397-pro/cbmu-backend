@@ -146,7 +146,9 @@ export const DEFAULT_CAMPUS_DATA: Record<string, CampusEntity> = {
     name_kn: "ವಿಜ್ಞಾನ ವಿಭಾಗ (ಬ್ಲಾಕ್)",
     location: "Faculty of Science & Technology cluster",
     directions: "Houses Computer Science, Physics, Chemistry, Mathematics and other science departments.",
-    aliases: ["science", "sci block"],
+    aliases: ["science", "sci block", "science faculty", "vigyana"],
+    lat: 12.8184,
+    lng: 74.9288,
     departments_here: [
       "Computer Science", "Physics", "Chemistry", "Mathematics",
       "Applied Botany", "Applied Zoology", "Biochemistry", "Biosciences",

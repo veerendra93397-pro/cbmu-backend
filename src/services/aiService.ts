@@ -10,9 +10,50 @@ export interface NoticeSummaryResponse {
   error?: string;
 }
 
+export interface ProviderStatus {
+  activeProvider: 'groq' | 'gemini' | 'academic_engine';
+  groqConfigured: boolean;
+  geminiConfigured: boolean;
+  modelName: string;
+}
+
 export const aiService = {
   /**
-   * Send a query to the server-side Gemini 3.8 Flash chat endpoint
+   * Check active server AI provider and Groq connection status
+   */
+  async getProviderStatus(): Promise<ProviderStatus> {
+    try {
+      const res = await fetch('/api/ai/provider-status');
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {}
+    return {
+      activeProvider: 'academic_engine',
+      groqConfigured: false,
+      geminiConfigured: false,
+      modelName: 'CBMU Academic Engine',
+    };
+  },
+
+  /**
+   * Test Groq connection
+   */
+  async testGroqConnection(key?: string): Promise<{ success: boolean; message: string; reply?: string }> {
+    try {
+      const res = await fetch('/api/ai/test-groq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key }),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Server connection failed' };
+    }
+  },
+
+  /**
+   * Send a query to the server-side AI chat endpoint (Groq / Gemini)
    */
   async chatWithGemini(message: string, lang: Language, history: { text: string; isUser: boolean }[] = []): Promise<string | null> {
     try {
