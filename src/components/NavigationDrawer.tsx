@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Sparkles
 } from 'lucide-react';
+import { storage } from '../services/storage';
 
 export type ScreenType = 
   | 'chat'
@@ -42,7 +43,11 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   if (!isOpen) return null;
 
   const handleNav = (screen: ScreenType) => {
-    onNavigate(screen);
+    if (screen === 'admin_login' && storage.isAdminLoggedIn()) {
+      onNavigate('admin_dashboard');
+    } else {
+      onNavigate(screen);
+    }
     onClose();
   };
 
@@ -158,12 +163,18 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 
             <div className="my-2 border-t border-slate-200 dark:border-[#2A2A2A]" />
 
+            {/* Admin Portal Authentication */}
             <button
-              onClick={() => handleNav('admin_login')}
-              className="w-full flex items-center gap-3.5 px-3 py-3 rounded-xl hover:bg-emerald-50 dark:hover:bg-[#2A2A2A] text-slate-700 dark:text-neutral-300 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors text-left font-medium text-sm"
+              onClick={() => handleNav(storage.isAdminLoggedIn() ? 'admin_dashboard' : 'admin_login')}
+              className="w-full flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-[#2A2A2A] text-slate-700 dark:text-neutral-300 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors text-left font-medium text-sm"
             >
-              <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              <span>Admin Login</span>
+              <div className="flex items-center gap-3.5">
+                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <span>{storage.isAdminLoggedIn() ? 'Admin Dashboard' : 'Admin Login'}</span>
+              </div>
+              <span className="text-[10px] bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 px-2 py-0.5 rounded-full font-medium">
+                {storage.isAdminLoggedIn() ? 'Logged In' : 'Staff Only'}
+              </span>
             </button>
           </nav>
         </div>

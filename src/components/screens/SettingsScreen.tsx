@@ -10,17 +10,23 @@ import {
   Server, 
   Zap, 
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck,
+  KeyRound,
+  Check,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { ThemeMode, BackgroundTheme } from '../../types';
 import { storage } from '../../services/storage';
 import { aiService, ProviderStatus } from '../../services/aiService';
-import { getApiBaseUrl, setBackendUrl, getApiUrl } from '../../services/apiConfig';
+import { getApiBaseUrl, setBackendUrl, getApiUrl, CBMU_BACKEND_RENDER_URL } from '../../services/apiConfig';
 
 interface SettingsScreenProps {
   currentTheme: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
   onNavigateAbout: () => void;
+  onNavigateAdmin?: () => void;
   onBack: () => void;
 }
 
@@ -28,6 +34,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   currentTheme,
   onThemeChange,
   onNavigateAbout,
+  onNavigateAdmin,
   onBack,
 }) => {
   const [bgTheme, setBgTheme] = useState<BackgroundTheme>(() => storage.getSettings().backgroundTheme);
@@ -36,6 +43,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Admin access settings
+  const [adminPasswordInput, setAdminPasswordInput] = useState(() => storage.getAdminPassword());
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [passwordSavedNotice, setPasswordSavedNotice] = useState(false);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -275,18 +287,52 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
             </div>
 
-            {/* Render Backend URL Configuration */}
+            {/* Backend Server URL Configuration */}
             <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Backend Server URL <span className="text-neutral-500 font-normal">(Render / Local)</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-neutral-300">
+                  Backend Server URL <span className="text-neutral-500 font-normal">({!backendUrlInput ? 'Integrated Server' : 'Custom / Render'})</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetBackendUrl}
+                    className={`text-[11px] px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                      !backendUrlInput
+                        ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/40'
+                        : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                    }`}
+                    title="Use fast integrated server with full admin login & instant chat"
+                  >
+                    ⚡ Integrated
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBackendUrlInput(CBMU_BACKEND_RENDER_URL);
+                      setBackendUrl(CBMU_BACKEND_RENDER_URL);
+                      setSavedSuccess(true);
+                      setTimeout(() => setSavedSuccess(false), 2500);
+                      handleTestConnection();
+                    }}
+                    className={`text-[11px] px-2 py-0.5 rounded transition-colors cursor-pointer flex items-center gap-1 font-mono ${
+                      backendUrlInput === CBMU_BACKEND_RENDER_URL
+                        ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/40'
+                        : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                    }`}
+                    title="Connect directly to https://cbmu-backend.onrender.com"
+                  >
+                    <Server className="w-3 h-3" /> Render
+                  </button>
+                </div>
+              </div>
               <form onSubmit={handleSaveBackendUrl} className="space-y-2">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={backendUrlInput}
                     onChange={(e) => setBackendUrlInput(e.target.value)}
-                    placeholder="Default: /api (or https://your-app.onrender.com)"
+                    placeholder="Same-Origin Integrated Server (default)"
                     className="flex-1 bg-black/50 border border-[#2A2A2A] focus:border-emerald-500 focus:outline-hidden rounded-lg px-3 py-2 text-xs text-white placeholder-neutral-500 font-mono"
                   />
                   <button
@@ -300,7 +346,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       type="button"
                       onClick={handleResetBackendUrl}
                       className="px-2.5 py-2 bg-[#2A2A2A] hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                      title="Reset to default same-origin /api"
+                      title="Reset to default integrated server"
                     >
                       Reset
                     </button>
@@ -308,7 +354,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </div>
                 {savedSuccess && (
                   <p className="text-[11px] text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Backend URL saved successfully!
+                    <CheckCircle2 className="w-3 h-3" /> {!backendUrlInput ? 'Switched to Integrated Server!' : 'Backend URL updated successfully!'}
                   </p>
                 )}
               </form>
@@ -337,24 +383,104 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               )}
             </div>
 
-            {/* Render & Groq Deployment Tips */}
+            {/* Render Deployment Tips */}
             <div className="p-3 bg-black/30 rounded-lg border border-[#222] text-[11px] text-neutral-400 space-y-1.5">
               <div className="font-semibold text-neutral-300 flex items-center gap-1.5">
                 <Server className="w-3.5 h-3.5 text-emerald-400" />
-                Render & GitHub Deployment Guide
+                Render Configuration: cbmu-backend
               </div>
               <p>
-                • <strong>Fix "Could not open requirements file: requirements.txt":</strong> In Render Settings, change <strong>Environment</strong> to <span className="text-white font-medium">Node</span>, Build Command to <code className="text-emerald-400">npm install && npm run build</code>, and Start Command to <code className="text-emerald-400">npm start</code>. Both Node and Python (<code className="text-emerald-400">requirements.txt</code>) are supported!
+                • <strong>Active Service:</strong> Your live backend is <strong className="text-emerald-400">cbmu-backend</strong> (Python 3, Singapore) hosted on <code className="text-white">https://cbmu-backend.onrender.com</code>.
               </p>
               <p>
-                • <strong>Render Blueprint Ready:</strong> A pre-configured <code className="text-emerald-400">render.yaml</code> is included in your project root for instant 1-click Render Web Service builds.
+                • <strong>Unused Service:</strong> You can safely delete or suspend <code className="text-neutral-500">cbmu-campus-assistant</code> in Render dashboard as all chat, fees, departments, and notices are served directly by <strong className="text-white">cbmu-backend</strong>.
               </p>
               <p>
-                • <strong>Connect Groq on Render:</strong> In your Render Dashboard &gt; <em>Environment Variables</em>, add <code className="text-emerald-400">GROQ_API_KEY=gsk_...</code> to enable high-speed LLaMA 3.3 70B inference.
+                • <strong>Groq AI Engine:</strong> LLaMA 3.3 70B is active on your Singapore server with live campus database fallback.
               </p>
-              <p>
-                • <strong>Local Server:</strong> Add <code className="text-emerald-400">GROQ_API_KEY=gsk_...</code> in your server's <code className="text-neutral-300">.env</code> file.
-              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Admin & Staff Portal */}
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 px-1 mb-2.5 flex items-center justify-between">
+            <span>Staff / Administrator Portal</span>
+            <span className="text-[10px] text-neutral-400 font-normal">
+              {storage.isAdminLoggedIn() ? 'Active Session' : 'Password Protected'}
+            </span>
+          </h3>
+
+          <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-4 space-y-4">
+            {onNavigateAdmin && (
+              <button
+                type="button"
+                onClick={onNavigateAdmin}
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>{storage.isAdminLoggedIn() ? 'Open Admin Dashboard' : 'Staff Portal Login'}</span>
+              </button>
+            )}
+
+            {/* Configure Custom Admin Password */}
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+                Admin Password <span className="text-neutral-500 font-normal">(Default: cbmuadmin)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type={showAdminPassword ? 'text' : 'password'}
+                    value={adminPasswordInput}
+                    onChange={(e) => setAdminPasswordInput(e.target.value)}
+                    placeholder="Enter admin password (e.g. cbmuadmin)"
+                    className="w-full pl-9 pr-14 py-2 bg-[#121212] border border-[#2E2E2E] rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-hidden focus:border-[#10A37F] font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPassword(!showAdminPassword)}
+                    aria-label={showAdminPassword ? 'Hide password' : 'Show password'}
+                    title={showAdminPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 cursor-pointer flex items-center gap-1"
+                  >
+                    {showAdminPassword ? <EyeOff className="w-3 h-3 text-amber-400" /> : <Eye className="w-3 h-3 text-emerald-400" />}
+                    <span>{showAdminPassword ? 'Hide' : 'Show'}</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    storage.setAdminPassword(adminPasswordInput.trim());
+                    setPasswordSavedNotice(true);
+                    setTimeout(() => setPasswordSavedNotice(false), 2000);
+                  }}
+                  className="px-3 py-2 bg-[#252525] hover:bg-[#303030] border border-[#3A3A3A] text-white text-xs font-medium rounded-xl transition-colors cursor-pointer shrink-0"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminPasswordInput('cbmuadmin');
+                    storage.setAdminPassword('cbmuadmin');
+                    setPasswordSavedNotice(true);
+                    setTimeout(() => setPasswordSavedNotice(false), 2000);
+                  }}
+                  className="px-2.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs rounded-xl transition-colors cursor-pointer shrink-0"
+                  title="Reset to default password"
+                >
+                  Reset
+                </button>
+              </div>
+
+              {passwordSavedNotice && (
+                <p className="text-[11px] text-emerald-400 mt-1.5 flex items-center gap-1 animate-in fade-in">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Admin password saved and synced!</span>
+                </p>
+              )}
             </div>
           </div>
         </div>

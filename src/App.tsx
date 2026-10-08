@@ -149,6 +149,14 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleOpenAdmin = () => {
+    if (storage.isAdminLoggedIn()) {
+      setCurrentScreen('admin_dashboard');
+    } else {
+      setCurrentScreen('admin_login');
+    }
+  };
+
   // Render current active screen
   const renderScreen = () => {
     switch (currentScreen) {
@@ -162,6 +170,7 @@ export const App: React.FC = () => {
             onToggleLang={handleToggleLang}
             onOpenDrawer={() => setDrawerOpen(true)}
             onOpenLocationMap={handleOpenLocationMap}
+            onOpenAdmin={handleOpenAdmin}
           />
         );
 
@@ -210,6 +219,7 @@ export const App: React.FC = () => {
             currentTheme={themeMode}
             onThemeChange={handleThemeChange}
             onNavigateAbout={() => setCurrentScreen('about')}
+            onNavigateAdmin={() => setCurrentScreen('admin_dashboard')}
             onBack={() => setCurrentScreen('chat')}
           />
         );
@@ -259,6 +269,7 @@ export const App: React.FC = () => {
             onToggleLang={handleToggleLang}
             onOpenDrawer={() => setDrawerOpen(true)}
             onOpenLocationMap={handleOpenLocationMap}
+            onOpenAdmin={handleOpenAdmin}
           />
         );
     }

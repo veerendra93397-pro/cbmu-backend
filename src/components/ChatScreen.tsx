@@ -23,7 +23,8 @@ import {
   Download,
   FileText,
   Printer,
-  Zap
+  Zap,
+  ShieldCheck
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -46,6 +47,7 @@ interface ChatScreenProps {
   onOpenLocationMap: (lat: number, lng: number, name: string) => void;
   lang: Language;
   onToggleLang: () => void;
+  onOpenAdmin?: () => void;
 }
 
 export const ChatScreen: React.FC<ChatScreenProps> = ({
@@ -53,6 +55,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   onOpenLocationMap,
   lang,
   onToggleLang,
+  onOpenAdmin,
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -583,6 +586,17 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               <Languages className="w-3.5 h-3.5 text-[#10A37F]" />
               <span>{lang === 'en' ? 'EN' : 'ಕನ್ನಡ'}</span>
             </button>
+
+            {/* Admin Portal Quick Button */}
+            {onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                className="p-2 rounded-lg hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                title="Admin Portal / Dashboard"
+              >
+                <ShieldCheck className="w-4.5 h-4.5" />
+              </button>
+            )}
 
             {/* Clear Chat Button */}
             <button

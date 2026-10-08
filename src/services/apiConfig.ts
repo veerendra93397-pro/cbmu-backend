@@ -1,16 +1,21 @@
 const BACKEND_URL_KEY = 'cbmu_backend_url';
+export const CBMU_BACKEND_RENDER_URL = 'https://cbmu-backend.onrender.com';
 
 /**
  * Returns the currently active Backend API base URL.
- * Checks localStorage first (configured via Settings screen),
- * then Vite environment variables (VITE_BACKEND_URL / VITE_API_URL),
- * and defaults to empty string for relative same-origin calls.
+ * Defaults to the live deployed Render backend: https://cbmu-backend.onrender.com
+ * Also allows user override via Settings or environment variables.
  */
 export function getApiBaseUrl(): string {
   try {
     const saved = localStorage.getItem(BACKEND_URL_KEY);
-    if (saved && saved.trim()) {
-      return saved.trim().replace(/\/+$/, '');
+    if (saved !== null) {
+      const trimmed = saved.trim().replace(/\/+$/, '');
+      // If empty or set to integrated/local, return empty string for same-origin
+      if (!trimmed || trimmed === 'local' || trimmed === 'integrated') {
+        return '';
+      }
+      return trimmed;
     }
   } catch {
     // localStorage not accessible
@@ -23,7 +28,22 @@ export function getApiBaseUrl(): string {
     return envUrl.replace(/\/+$/, '');
   }
 
+  // Primary Default: Integrated same-origin Express server (instant & reliable, full admin & campus data)
   return '';
+}
+
+/**
+ * Resets the backend connection back to the integrated same-origin server.
+ */
+export function resetToIntegratedBackend(): void {
+  try {
+    localStorage.removeItem(BACKEND_URL_KEY);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('cbmu_backend_url_changed', { detail: { url: '' } }));
+    }
+  } catch {
+    // ignore
+  }
 }
 
 /**

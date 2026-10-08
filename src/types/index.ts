@@ -27,6 +27,8 @@ export interface CampusEntity {
   lng?: number | null;
   image_url?: string;
   image_attribution?: string;
+  is_building?: boolean;
+  building_type?: string;
 }
 
 export interface CourseFee {

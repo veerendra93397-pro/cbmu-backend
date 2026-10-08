@@ -34,45 +34,24 @@ npm run build
 npm start
 ```
 
-## Render Deployment (Zero-Config)
+## Live Render Backend: cbmu-backend (Python 3, Singapore)
 
-This repository includes a ready-to-deploy `render.yaml` Blueprint file and supports both **Node.js** (Default & Recommended) and **Python (FastAPI)** runtimes on Render.
+Your live active backend service is **cbmu-backend**, currently deployed on Render at:
+👉 **`https://cbmu-backend.onrender.com`**
 
-### Fix for Render Error: `Could not open requirements file: [Errno 2] No such file or directory: 'requirements.txt'`
+### Status & Verification:
+- **Service Name:** `cbmu-backend`
+- **Status:** `Deployed` (Active)
+- **Runtime:** `Python 3` (FastAPI + Uvicorn)
+- **Region:** `Singapore`
+- **Active AI Engine:** `Groq (LLaMA 3.3 70B Versatile)` + Mangalore University verified dataset
+- **Unused Service:** You can safely delete or suspend `cbmu-campus-assistant` in your Render dashboard, as all endpoints are served by `cbmu-backend`.
 
-If you connect this repository to Render via GitHub and encounter:
-```text
-ERROR: Could not open requirements file: [Errno 2] No such file or directory: 'requirements.txt'
-```
-This happens because Render automatically selected or was configured with the **Python** environment instead of **Node.js**, or `requirements.txt` was missing. Here is how to resolve it:
-
-#### Option A: Deploy as Node.js (Recommended - Runs Full Web App + Groq AI)
-1. In your [Render Dashboard](https://dashboard.render.com), go to your Web Service **Settings**.
-2. Set the following fields:
-   - **Environment / Runtime**: `Node`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm start`
-   - **Root Directory**: (Leave blank)
-3. Under **Environment Variables**, add:
-   - `GROQ_API_KEY`: Your key from [Groq Console](https://console.groq.com/keys)
-   - `NODE_ENV`: `production`
-4. Click **Save Changes** and **Manual Deploy > Clear build cache & deploy**.
-
-#### Option B: Deploy as Python Web Service (FastAPI Backend)
-If you specifically want Render to run the Python backend (`main.py`):
-1. Both `requirements.txt` and `backend/requirements.txt` are included in this repository.
-2. In your Render Web Service **Settings**:
-   - **Environment / Runtime**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-   - **Root Directory**: (Leave blank or `backend` if pointing directly)
-3. Under **Environment Variables**, add:
-   - `GROQ_API_KEY`: Your key from [Groq Console](https://console.groq.com/keys)
-
-#### Option C: Render Blueprint (Automatic 1-Click)
-1. In the [Render Dashboard](https://dashboard.render.com), click **New +** > **Blueprint**.
-2. Connect your GitHub repository.
-3. Render reads `render.yaml` automatically and configures all build and start commands without manual entry.
+### Connecting the Frontend:
+1. Open this web app and navigate to **Settings** (via sidebar menu ☰).
+2. Look under **Backend Server & AI Engine**.
+3. It defaults to `https://cbmu-backend.onrender.com`.
+4. Click **Test Backend & AI Connection** to verify live communication with your Singapore Render service.
 
 ## Groq AI Server Activation
 

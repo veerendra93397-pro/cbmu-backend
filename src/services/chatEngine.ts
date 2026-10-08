@@ -4,7 +4,7 @@ import { getApiUrl } from './apiConfig';
 
 export interface ChatResponse {
   answer: string;
-  source: 'remote' | 'local' | 'gemini';
+  source: 'remote' | 'local' | 'gemini' | 'groq';
 }
 
 function calculateSimilarity(s1: string, s2: string): number {
@@ -33,6 +33,18 @@ function calculateSimilarity(s1: string, s2: string): number {
   return (longerLength - costs[s2.length]) / longerLength;
 }
 
+function isGenericFallback(text: string): boolean {
+  if (!text || typeof text !== 'string') return true;
+  const t = text.toLowerCase();
+  if (t.includes('campus guide:') && (t.includes('try asking') || t.includes('i can assist you with campus locations'))) {
+    return true;
+  }
+  if (t.includes("couldn't find a direct record matching") || t.includes('ನಿಖರವಾದ ಮಾಹಿತಿ ಸಿಗಲಿಲ್ಲ')) {
+    return true;
+  }
+  return false;
+}
+
 export async function processChatMessage(
   message: string, 
   lang: Language, 
@@ -40,35 +52,11 @@ export async function processChatMessage(
 ): Promise<ChatResponse> {
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
+  const isKn = lang === 'kn';
 
-  // 1. Try server-side AI (Groq or Gemini or Campus Engine) via Render or local backend
-  let serverFallbackAnswer: string | null = null;
-  try {
-    const aiRes = await fetch(getApiUrl("/api/ai/chat"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: trimmed, lang, history }),
-    });
-
-    if (aiRes.ok) {
-      const data = await aiRes.json();
-      if (data && data.answer) {
-        // Return server AI reply directly
-        return { 
-          answer: data.answer, 
-          source: (data.source === 'groq' || data.source === 'gemini') ? data.source : 'remote' 
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('Backend chat route unreachable, falling back to local campus engine:', err);
-  }
-
-  // 2. Local knowledge engine matching with latest admin-edited data
-  const departments = storage.getDepartments();
-  const fees = storage.getFees();
-
-  // 1. Greetings
+  // 1. Direct High-Confidence Intent Matchers (Instant & Accurate)
+  
+  // A. Greetings
   const greetings = ['hi', 'hello', 'hey', 'namaste', 'namaskara', 'namaskar', 'good morning', 'good afternoon', 'good evening', 'good night'];
   if (greetings.some(g => lower === g || lower.startsWith(g + ' ') || lower.startsWith(g + '!'))) {
     const hour = new Date().getHours();
@@ -81,35 +69,36 @@ export async function processChatMessage(
       timeGreeting = "Good afternoon ☀️";
       timeGreetingKn = "ಶುಭ ಮಧ್ಯಾಹ್ನ ☀️";
     } else if (hour < 21) {
-      timeGreeting = "Good evening";
-      timeGreetingKn = "ಶುಭ ಸಂಜೆ";
+      timeGreeting = "Good evening 🌆";
+      timeGreetingKn = "ಶುಭ ಸಂಜೆ 🌆";
     } else {
       timeGreeting = "Good night 🌙";
       timeGreetingKn = "ಶುಭ ರಾತ್ರಿ 🌙";
     }
 
-    if (lang === 'kn') {
+    if (isKn) {
       return {
-        answer: `${timeGreetingKn}! ನಾನು ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ (CBMU) ಕ್ಯಾಂಪಸ್ ಸಹಾಯಕ. ನೀವು ವಿಭಾಗಗಳು, ಶುಲ್ಕ, ಹಾಸ್ಟೆಲ್ ಅಥವಾ ಅಧಿಕಾರಿಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು.`,
+        answer: `${timeGreetingKn}! ನಾನು ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ (CBMU) ಕ್ಯಾಂಪಸ್ ಸಹಾಯಕ ✨.\n\nನೀವು ವಿಭಾಗಗಳು, ಶುಲ್ಕ ವಿವರಗಳು, ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳು, ಹಾಸ್ಟೆಲ್ ಅಥವಾ ಬಸ್ ಮಾರ್ಗಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು.`,
         source: 'local'
       };
     }
     return {
-      answer: `${timeGreeting}! I am your CBMU Campus Assistant. You can ask me about departments, office contacts, fee structures, hostels, or campus facilities.`,
+      answer: `${timeGreeting}! I am your CBMU Campus Assistant 🎓✨.\n\nYou can ask me about fee structures, exam results, departments, hostel timings, bus routes, or university officials.`,
       source: 'local'
     };
   }
 
-  // 2. Thank you
+  // B. Thank you
   if (lower.includes('thank') || lower.includes('dhanyavada') || lower.includes('dhanyavad')) {
-    if (lang === 'kn') {
-      return { answer: "ನಿಮಗೆ ಸ್ವಾಗತ! ಬೇರೆ ಏನಾದರೂ ಸಹಾಯ ಬೇಕಿದ್ದರೆ ತಿಳಿಸಿ.", source: 'local' };
+    if (isKn) {
+      return { answer: "ನಿಮಗೆ ಹೃತ್ಪೂರ್ವಕ ಸ್ವಾಗತ! ಬೇರೆ ಏನಾದರೂ ಮಾಹಿತಿ ಅಥವಾ ಸಹಾಯ ಬೇಕಿದ್ದರೆ ತಿಳಿಸಿ. 😊", source: 'local' };
     }
-    return { answer: "You're very welcome! Let me know if there's anything else about CBMU I can help you with.", source: 'local' };
+    return { answer: "You're very welcome! Let me know if there's anything else about Mangalore University I can help you with. 😊", source: 'local' };
   }
 
-  // 3. Fees query
-  if (lower.includes('fee') || lower.includes('fees') || lower.includes('structure') || lower.includes('shulka')) {
+  // C. Fees query (e.g. "What is the fee structure?", "MCA fee", "PG fees", etc.)
+  if (lower.includes('fee') || lower.includes('fees') || lower.includes('structure') || lower.includes('shulka') || lower.includes('ಶುಲ್ಕ')) {
+    const fees = storage.getFees();
     let matchedFee: CourseFee | null = null;
 
     if (lower.includes('mca')) matchedFee = fees['mca'];
@@ -120,121 +109,289 @@ export async function processChatMessage(
     else if (lower.includes('affiliated') || lower.includes('autonomous')) matchedFee = fees['pg_affiliated'];
 
     if (matchedFee) {
-      if (lang === 'kn') {
-        let text = `### ${matchedFee.label} ಶುಲ್ಕ ವಿವರ (${matchedFee.year})\n\n`;
-        text += `ಅಧಿಕೃತ ಶುಲ್ಕ ಅಧಿಸೂಚನೆ PDF:\n[${matchedFee.pdf_label}](${matchedFee.pdf})\n\n`;
-        if (matchedFee.note) text += `*ಗಮನಿಸಿ:* ${matchedFee.note}\n\n`;
+      if (isKn) {
+        let text = `### 💳 ${matchedFee.label} ಶುಲ್ಕ ವಿವರ (${matchedFee.year})\n\n`;
+        text += `📄 **ಅಧಿಕೃತ ಶುಲ್ಕ ಅಧಿಸೂಚನೆ PDF:**\n[${matchedFee.pdf_label || 'PDF ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ'}](${matchedFee.pdf})\n\n`;
+        if (matchedFee.note) text += `ℹ️ *ಗಮನಿಸಿ:* ${matchedFee.note}\n\n`;
         text += `ಎಲ್ಲಾ ಕೋರ್ಸ್‌ಗಳ ವಿವರಗಳಿಗಾಗಿ [ಶುಲ್ಕ ವಿವರಗಳ ಪುಟವನ್ನು ತೆರೆಯಿರಿ](https://mangaloreuniversity.ac.in/fee-details-1.html).`;
         return { answer: text, source: 'local' };
       }
 
-      let text = `### ${matchedFee.label} Fee Structure (${matchedFee.year})\n\n`;
-      text += `Official Notification PDF:\n[${matchedFee.pdf_label}](${matchedFee.pdf})\n\n`;
-      if (matchedFee.note) text += `*Note:* ${matchedFee.note}\n\n`;
+      let text = `### 💳 ${matchedFee.label} Fee Structure (${matchedFee.year})\n\n`;
+      text += `📄 **Official Notification PDF:**\n[${matchedFee.pdf_label || 'Download Official PDF'}](${matchedFee.pdf})\n\n`;
+      if (matchedFee.note) text += `ℹ️ *Note:* ${matchedFee.note}\n\n`;
       text += `Browse the complete official list on the [University Fee Details Page](https://mangaloreuniversity.ac.in/fee-details-1.html).`;
       return { answer: text, source: 'local' };
     }
 
     // General fees overview
-    if (lang === 'kn') {
-      let text = `### ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಶುಲ್ಕ ವಿವರಗಳು\n\n`;
+    if (isKn) {
+      let text = `### 💳 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಶುಲ್ಕ ವಿವರಗಳು (Fee Structures)\n\n`;
       Object.values(fees).forEach(f => {
-        text += `• **${f.label}** (${f.year}): [${f.pdf_label}](${f.pdf})\n`;
+        text += `• **${f.label}** (${f.year}): [${f.pdf_label || 'ಅಧಿಕೃತ PDF'}](${f.pdf})\n`;
       });
       text += `\nಹೆಚ್ಚಿನ ವಿವರಗಳಿಗಾಗಿ [ವಿಶ್ವವಿದ್ಯಾಲಯ ಶುಲ್ಕ ಪುಟವನ್ನು ಭೇಟಿ ಮಾಡಿ](https://mangaloreuniversity.ac.in/fee-details-1.html).`;
       return { answer: text, source: 'local' };
     }
 
-    let text = `### Mangalore University Fee Structures\n\n`;
+    let text = `### 💳 Mangalore University Fee Structures\n\n`;
     Object.values(fees).forEach(f => {
-      text += `• **${f.label}** (${f.year}): [${f.pdf_label}](${f.pdf})\n`;
+      text += `• **${f.label}** (${f.year}): [${f.pdf_label || 'View Fee PDF'}](${f.pdf})\n`;
     });
-    text += `\nFor specific programs, ask e.g. *"MCA fee"*, *"MBA fee"*, or *"UG fees"*, or check the [Official Fee Page](https://mangaloreuniversity.ac.in/fee-details-1.html).`;
+    text += `\n💡 *Tip:* For specific courses, ask e.g. *"MCA fee"*, *"MBA fee"*, or *"UG fees"*, or browse the [Official Fee Details Page](https://mangaloreuniversity.ac.in/fee-details-1.html).`;
     return { answer: text, source: 'local' };
   }
 
-  // 4. Quick Actions: Results, Library Hours, Campus Rules
-  if (lower.includes('result') || lower.includes('marks') || lower.includes('phalaamsha')) {
-    if (lang === 'kn') {
+  // D. Results & Examination
+  if (lower.includes('result') || lower.includes('marks') || lower.includes('phalaamsha') || lower.includes('ಫಲಿತಾಂಶ') || lower.includes('exam mark')) {
+    if (isKn) {
       return {
-        answer: `### 🎓 ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳು (Exam Results)\n\nಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯದ ಎಲ್ಲಾ ಪದವಿ (UG) ಮತ್ತು ಸ್ನಾತಕೋತ್ತರ (PG) ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳನ್ನು ಅಧಿಕೃತ ಪರೀಕ್ಷಾ ಪೋರ್ಟಲ್‌ನಲ್ಲಿ ವೀಕ್ಷಿಸಬಹುದು:\n\n• **ಫಲಿತಾಂಶ ಪೋರ್ಟಲ್:** [ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಫಲಿತಾಂಶ ಲಿಂಕ್](https://mangaloreuniversity.ac.in/exam-results)\n• **UUCMS ಪೋರ್ಟಲ್:** [UUCMS ಕರ್ನಾಟಕ ಲಾಗಿನ್](https://uucms.karnataka.gov.in)\n• **ಪರೀಕ್ಷಾ ವಿಭಾಗ ಸಂಪರ್ಕ:** 0824-2287227 / 2287282\n\nನಿಮ್ಮ ರಿಜಿಸ್ಟರ್ ನಂಬರ್ (Register Number) ಮತ್ತು ಹುಟ್ಟಿದ ದಿನಾಂಕದೊಂದಿಗೆ ಫಲಿತಾಂಶ ವೀಕ್ಷಿಸಿ.`,
+        answer: `### 🎓 ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳು (Exam Results)\n\nಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯದ ಎಲ್ಲಾ ಪದವಿ (UG) ಮತ್ತು ಸ್ನಾತಕೋತ್ತರ (PG) ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳನ್ನು ಅಧಿಕೃತ ಪೋರ್ಟಲ್‌ನಲ್ಲಿ ವೀಕ್ಷಿಸಬಹುದು:\n\n• **ಫಲಿತಾಂಶ ಪೋರ್ಟಲ್:** [ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಫಲಿತಾಂಶ ಲಿಂಕ್](https://mangaloreuniversity.ac.in/exam-results)\n• **UUCMS ಪೋರ್ಟಲ್:** [UUCMS ಕರ್ನಾಟಕ ವಿದ್ಯಾರ್ಥಿ ಲಾಗಿನ್](https://uucms.karnataka.gov.in)\n• **ಕುಲಸಚಿವರು (ಮೌಲ್ಯಮಾಪನ) ಸಹಾಯವಾಣಿ:** 0824-2287227 / 2287282\n\nನಿಮ್ಮ ರಿಜಿಸ್ಟರ್ ನಂಬರ್ (Register Number) ನಮೂದಿಸಿ ಫಲಿತಾಂಶ ಪರಿಶೀಲಿಸಿ.`,
         source: 'local'
       };
     }
     return {
-      answer: `### 🎓 Examination Results\n\nYou can access the latest undergraduate (UG) and postgraduate (PG) semester exam results directly on the official Mangalore University portals:\n\n• **Official Results Portal:** [Check MU Results](https://mangaloreuniversity.ac.in/exam-results)\n• **UUCMS Unified Portal:** [UUCMS Karnataka Student Login](https://uucms.karnataka.gov.in)\n• **Registrar (Evaluation) Helpdesk:** 0824-2287227 / 2287282\n\nPlease keep your university register/roll number ready to check your grade card.`,
+      answer: `### 🎓 Examination Results & Mark Sheets\n\nYou can access undergraduate (UG) and postgraduate (PG) semester exam results directly on official university portals:\n\n• **Official Results Portal:** [Check MU Results Online](https://mangaloreuniversity.ac.in/exam-results)\n• **UUCMS Karnataka Portal:** [UUCMS Student Login](https://uucms.karnataka.gov.in)\n• **Registrar (Evaluation) Helpdesk:** 0824-2287227 / 2287282\n\n📌 Please keep your university register number ready to view your semester grades.`,
       source: 'local'
     };
   }
 
-  if (lower.includes('library location') || lower.includes('where is the library') || lower.includes('show me the library') || (lower.includes('library') && (lower.includes('location') || lower.includes('where') || lower.includes('map') || lower.includes('reach') || lower.includes('elli')))) {
-    if (lang === 'kn') {
+  // E. How to reach campus / Bus routes
+  if (lower.includes('bus') || lower.includes('reach') || lower.includes('route') || lower.includes('distance') || lower.includes('train') || lower.includes('airport') || lower.includes('ಹೇಗೆ ಹೋಗುವುದು') || lower.includes('ಬಸ್')) {
+    if (isKn) {
       return {
-        answer: `### 📚 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ (Central Library)\n\n📍 **ಸ್ಥಳ:** ಮುಖ್ಯ ಆಡಳಿತ ಸೌಧದ (Admin Block) ಮುಂಭಾಗದಲ್ಲಿ, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್, ಕೊಣಾಜೆ.\n⏰ **ಸಮಯ:** ಸೋಮವಾರ - ಶನಿವಾರ: 9:00 AM – 5:30 PM (ಓದುವ ಕೊಠಡಿಗಳು ಬೆಳಗ್ಗೆ 8 ರಿಂದ ರಾತ್ರಿ 8 ರವರೆಗೆ ತೆರೆದಿರುತ್ತವೆ)\n👤 **ಗ್ರಂಥಪಾಲಕರು:** Dr. M. Purushotham Gowda (ಮೊಬೈಲ್: 9449450671)\n\n__LOCATION__:12.8153,74.9248`,
+        answer: `### 🚌 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕ್ಯಾಂಪಸ್ ತಲುಪುವುದು ಹೇಗೆ?
+\n📍 **ವಿಳಾಸ:** ಮಂಗಳಗಂಗೋತ್ರಿ, ಕೊಣಾಜೆ, ಮಂಗಳೂರು - 574199 (ಮಂಗಳೂರು ನಗರ ಕೇಂದ್ರದಿಂದ ~20 ಕಿ.ಮೀ).
+\n🚍 **ನಗರ ಬಸ್ ಮಾರ್ಗಗಳು (State Bank ನಿಲ್ದಾಣದಿಂದ):**
+• **ಬಸ್ ಸಂಖ್ಯೆಗಳು:** **Route No. 51, 51A, 51B, 51E**
+• **ಮಾರ್ಗ:** State Bank → ಕಂಕನಾಡಿ → ಪಂಪ್‌ವೆಲ್ → ತೊಕ್ಕೊಟ್ಟು → ದೇರಳಕಟ್ಟೆ → ಕೊಣಾಜೆ (ಕ್ಯಾಂಪಸ್ ಗೇಟ್).
+• **ಪ್ರಯಾಣ ಸಮಯ:** 45 - 55 ನಿಮಿಷಗಳು (ಪ್ರತಿ 10-15 ನಿಮಿಷಕ್ಕೊಮ್ಮೆ ಬಸ್ ಲಭ್ಯ).
+\n🚆 **ಹತ್ತಿರದ ರೈಲ್ವೆ ನಿಲ್ದಾಣಗಳು:** Mangalore Central (MAQ) & Mangalore Junction (MAJN).
+✈️ **ವಿಮಾನ ನಿಲ್ದಾಣ:** ಮಂಗಳೂರು ಅಂತಾರಾಷ್ಟ್ರೀಯ ವಿಮಾನ ನಿಲ್ದಾಣ (Bajpe, ~32 ಕಿ.ಮೀ).
+\n__LOCATION__:12.8160,74.9255`,
         source: 'local'
       };
     }
     return {
-      answer: `### 📚 Central University Library Location\n\n📍 **Location:** Opposite Administration Block, Mangalagangotri Campus, Konaje (Mangaluru - 574199).\n⏰ **Timings:** Monday to Saturday: 9:00 AM – 5:30 PM (Reading halls open 8:00 AM – 8:00 PM on weekdays).\n👤 **In-Charge Librarian:** Dr. M. Purushotham Gowda (Mobile: 9449450671)\n\n__LOCATION__:12.8153,74.9248`,
+      answer: `### 🚌 How to Reach Mangalore University Campus (Mangalagangotri, Konaje)
+\n📍 **Campus Address:** Mangalagangotri, Konaje, Mangaluru, Karnataka - 574199 (~20 km from Mangalore city center).
+\n🚍 **City Bus Routes from State Bank Terminus:**
+• **Bus Route Numbers:** **51, 51A, 51B, 51E**
+• **Route:** State Bank → Kankanady → Pumpwell Circle → Thokkottu Overbridge → Deralakatte Medical Hub → Konaje Campus Gate.
+• **Frequency:** Every 10 to 15 minutes during academic hours.
+• **Travel Time:** Approx. 45–55 minutes.
+\n🚆 **Nearest Railway Stations:** Mangalore Central (MAQ, ~20 km) & Mangalore Junction (MAJN, ~18 km). Auto-rickshaws and app cabs available.
+✈️ **Nearest Airport:** Mangalore International Airport (IXE, ~32 km).
+\n__LOCATION__:12.8160,74.9255`,
       source: 'local'
     };
   }
 
-  if (lower.includes('library hour') || lower.includes('library timing') || lower.includes('library time') || (lower.includes('library') && lower.includes('hour'))) {
-    if (lang === 'kn') {
+  // F. Vice Chancellor & Registrar
+  if (lower.includes('vice chancellor') || lower.includes('vc') || lower.includes('chancellor') || lower.includes('kulapati') || lower.includes('ಕುಲಪತಿ')) {
+    if (isKn) {
       return {
-        answer: `### 📚 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಗ್ರಂಥಾಲಯ ಸಮಯ (Library Hours)\n\n• **ಸೋಮವಾರದಿಂದ ಶುಕ್ರವಾರ:** ಬೆಳಗ್ಗೆ 8:00 ರಿಂದ ರಾತ್ರಿ 8:00 ರವರೆಗೆ\n• **ಶನಿವಾರ:** ಬೆಳಗ್ಗೆ 9:00 ರಿಂದ ಸಂಜೆ 5:30 ರವರೆಗೆ\n• **ಭಾನುವಾರ & ರಜಾದಿನಗಳು:** ಬೆಳಗ್ಗೆ 10:00 ರಿಂದ ಸಂಜೆ 4:30 ರವರೆಗೆ (ಪರೀಕ್ಷಾ ಸಮಯದಲ್ಲಿ ಮಾತ್ರ)\n\n📍 **ಸ್ಥಳ:** ಮುಖ್ಯ ಆಡಳಿತ ಕಟ್ಟಡದ ಎದುರು, ಮಂಗಳಗಂಗೋತ್ರಿ\n📞 **ಸಂಪರ್ಕ:** 0824-2287234\n\n__LOCATION__:12.8153,74.9248`,
+        answer: `### 🏛️ ಮಾನ್ಯ ಕುಲಪತಿಗಳು (Vice Chancellor) - ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ
+\n👤 **ಕುಲಪತಿಗಳು:** **ಪ್ರೊ. ಪಿ. ಎಲ್. ಧರ್ಮ** (Prof. P. L. Dharma)
+📍 **ಕಚೇರಿ:** ಕುಲಪತಿಗಳ ಸಚಿವಾಲಯ, ಮೊದಲ ಮಹಡಿ, ಆಡಳಿತ ಸೌಧ, ಮಂಗಳಗಂಗೋತ್ರಿ, ಕೊಣಾಜೆ
+📞 **ದೂರವಾಣಿ:** 0824-2287230 / 2287231
+✉️ **ಇಮೇಲ್:** vc@mangaloreuniversity.ac.in
+🧭 **ಭೇಟಿಯ ಸಮಯ:** ಮಧ್ಯಾಹ್ನ 3:00 ರಿಂದ ಸಂಜೆ 5:00 ರವರೆಗೆ (ಪೂರ್ವಾನುಮತಿಯೊಂದಿಗೆ)
+\n__LOCATION__:12.8160,74.9255`,
         source: 'local'
       };
     }
     return {
-      answer: `### 📚 University Central Library Hours\n\n• **Monday – Friday:** 8:00 AM – 8:00 PM\n• **Saturday:** 9:00 AM – 5:30 PM\n• **Sunday & Public Holidays:** 10:00 AM – 4:30 PM (Reading halls open during exam schedules)\n• **Circulation Counter:** 9:30 AM – 5:00 PM on working days\n\n📍 **Location:** Opposite Administration Building, Mangalagangotri\n📞 **Librarian Desk:** 0824-2287234\n\n__LOCATION__:12.8153,74.9248`,
+      answer: `### 🏛️ Office of the Vice Chancellor (CBMU)
+\n👤 **Hon'ble Vice Chancellor:** **Prof. P. L. Dharma**
+📍 **Office:** Vice Chancellor's Secretariat, First Floor, Administration Block, Mangalagangotri, Konaje - 574199
+📞 **Phone:** 0824-2287230 / 2287231
+✉️ **Email:** vc@mangaloreuniversity.ac.in
+🧭 **Visiting Hours:** 3:00 PM – 5:00 PM (by prior appointment with PS to VC)
+\n__LOCATION__:12.8160,74.9255`,
       source: 'local'
     };
   }
 
-  if (lower.includes('campus rule') || lower.includes('discipline') || lower.includes('code of conduct') || lower.includes('ragging') || lower.includes('niyama')) {
-    if (lang === 'kn') {
+  if (lower.includes('registrar') || lower.includes('kulasachiva') || lower.includes('ಕುಲಸಚಿವ')) {
+    if (isKn) {
       return {
-        answer: `### 🏛️ ಕ್ಯಾಂಪಸ್ ನಿಯಮಗಳು ಮತ್ತು ನೀತಿ ಸಂಹಿತೆ (Campus Rules)\n\n1. **ಗುರುತಿನ ಚೀಟಿ (ID Card):** ವಿದ್ಯಾರ್ಥಿಗಳು ಕ್ಯಾಂಪಸ್‌ನಲ್ಲಿ ಯಾವಾಗಲೂ ಗುರುತಿನ ಚೀಟಿಯನ್ನು ಹೊಂದಿರಬೇಕು.\n2. **ರ‍್ಯಾಗಿಂಗ್ ಮುಕ್ತ ಕ್ಯಾಂಪಸ್:** ಯಾವುದೇ ರೀತಿಯ ರ‍್ಯಾಗಿಂಗ್ ಕಾನೂನುಬಾಹಿರ ಮತ್ತು ಕಠಿಣ ಶಿಕ್ಷಾರ್ಹ ಅಪರಾಧ (Zero Tolerance Policy).\n3. **ವಾಹನ ವೇಗ ಮಿತಿ:** ಕ್ಯಾಂಪಸ್ ರಸ್ತೆಗಳಲ್ಲಿ ಗರಿಷ್ಠ ವೇಗ ಮಿತಿ 30 km/h ಮತ್ತು ಹೆಲ್ಮೆಟ್ ಕಡ್ಡಾಯ.\n4. **ಸ್ವಚ್ಛತೆ & ಪರಿಸರ ಸಂರಕ್ಷಣೆ:** ಪ್ಲಾಸ್ಟಿಕ್ ಮುಕ್ತ ಮತ್ತು ಧೂಮಪಾನ/ತಂಬಾಕು ಮುಕ್ತ ಹಸಿರು ಕ್ಯಾಂಪಸ್.\n5. **ಹಾಸ್ಟೆಲ್ ಸಮಯ:** ಹಾಸ್ಟೆಲ್ ವಿದ್ಯಾರ್ಥಿಗಳು ನಿಗದಿತ ಸಂಜೆ 7:30 ರ ಒಳಗೆ ಹಾಸ್ಟೆಲ್‌ಗೆ ಮರಳಬೇಕು.\n\n📞 **ಆ್ಯಂಟಿ-ರ‍್ಯಾಗಿಂಗ್ ಹೆಲ್ಪ್‌ಲೈನ್:** 1800-180-5522`,
+        answer: `### 🏛️ ಕುಲಸಚಿವರು (Registrar Administration & Evaluation)
+\n1. **ಕುಲಸಚಿವರು (ಆಡಳಿತ):**
+• **ಅಧಿಕಾರಿ:** ಶ್ರೀ ಕೆ. ರಾಜು ಮೊಗವೀರ, KAS (Sri K. Raju Mogaveera, KAS)
+• 📍 **ಸ್ಥಳ:** ಆಡಳಿತ ಸೌಧ, ಮಂಗಳಗಂಗೋತ್ರಿ
+• 📞 **ದೂರವಾಣಿ:** 0824-2287276
+\n2. **ಕುಲಸಚಿವರು (ಮೌಲ್ಯಮಾಪನ / ಪರೀಕ್ಷೆ):**
+• **ಅಧಿಕಾರಿ:** ಪ್ರೊ. ದೇವೇಂದ್ರಪ್ಪ ಹೆಚ್ (Prof. Devendrappa H)
+• 📍 **ಸ್ಥಳ:** ಪರೀಕ್ಷಾ ಭವನ (Pareeksha Bhavan)
+• 📞 **ದೂರವಾಣಿ:** 0824-2287227 / 2287282
+\n__LOCATION__:12.8160,74.9255`,
         source: 'local'
       };
     }
     return {
-      answer: `### 🏛️ Mangalore University Campus Rules & Code of Conduct\n\n1. **Identity Cards:** Students and scholars must carry and display their university ID badge on campus at all times.\n2. **Zero Tolerance for Ragging:** Ragging in any form on campus or hostels is strictly banned by UGC & Supreme Court directives and is punishable by expulsion and criminal action.\n3. **Traffic & Parking:** Maximum vehicle speed limit is **30 km/h**. Helmets and designated parking slots must be followed.\n4. **Green & Eco-friendly Campus:** Plastic-free, smoking-free, and tobacco-free environment. Littering is fined.\n5. **Hostel In-Timings:** Resident students must adhere to the 7:30 PM hostel gate closure policy unless granted prior written leave from the warden.\n\n📞 **National Anti-Ragging Helpline:** 1800-180-5522 | **Campus Security Office:** 0824-2287340`,
+      answer: `### 🏛️ Registrar Secretariat & Examination Branch
+\n1. **Registrar (Administration):**
+• **Officer:** Sri K. Raju Mogaveera, KAS
+• 📍 **Office:** Administration Block, Mangalagangotri Campus
+• 📞 **Phone:** 0824-2287276 | ✉️ **Email:** registrar@mangaloreuniversity.ac.in
+\n2. **Registrar (Evaluation / Examinations):**
+• **Officer:** Prof. Devendrappa H
+• 📍 **Office:** Pareeksha Bhavan (Examination Block)
+• 📞 **Phone:** 0824-2287227 / 2287282
+\n__LOCATION__:12.8160,74.9255`,
       source: 'local'
     };
   }
 
-  // 4. Entity matching across CAMPUS_DATA
+  // G. Hostels
+  if (lower.includes('hostel') || lower.includes('ಹಾಸ್ಟೆಲ್') || lower.includes('ವಸತಿ ನಿಲಯ')) {
+    if (isKn) {
+      return {
+        answer: `### 🏢 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ವಿದ್ಯಾರ್ಥಿ ನಿಲಯಗಳು (Hostels)
+\n1. **ಪುರುಷರ ಹಾಸ್ಟೆಲ್ (Men's Hostel):**
+• **ಬ್ಲಾಕ್‌ಗಳು:** ಕಾವೇರಿ ಮತ್ತು ನೇತ್ರಾವತಿ ಬ್ಲಾಕ್
+• 📍 ಸ್ಥಳ: ದಕ್ಷಿಣ ಕ್ಯಾಂಪಸ್, ಕ್ರೀಡಾಂಗಣದ ಹತ್ತಿರ
+• ⏰ ಗೇಟ್ ಮುಚ್ಚುವ ಸಮಯ: ರಾತ್ರಿ 8:30
+\n2. **ಮಹಿಳೆಯರ ಹಾಸ್ಟೆಲ್ (Women's Hostel):**
+• **ಬ್ಲಾಕ್‌ಗಳು:** ಗಂಗೋತ್ರಿ ಮಹಿಳಾ ನಿಲಯ
+• 📍 ಸ್ಥಳ: ಉತ್ತರ ಕ್ಯಾಂಪಸ್, ಅತಿಥಿ ಗೃಹದ ಹತ್ತಿರ
+• ⏰ ಗೇಟ್ ಮುಚ್ಚುವ ಸಮಯ: ಸಂಜೆ 7:30
+\n🍲 **ಸೌಲಭ್ಯಗಳು:** ಶುದ್ಧ ಕುಡಿಯುವ ನೀರು, ವೈ-ಫೈ, ಡೈನಿಂಗ್ ಹಾಲ್, 24/7 ಭದ್ರತೆ.
+📞 **ವಾರ್ಡನ್ ಸಂಪರ್ಕ:** 0824-2287242
+\n__LOCATION__:12.8180,74.9240`,
+        source: 'local'
+      };
+    }
+    return {
+      answer: `### 🏢 University Hostels & Residential Facilities
+\n1. **Men's Post Graduate Hostel:**
+• **Blocks:** Kaveri & Netravathi Halls of Residence
+• 📍 **Location:** South Campus, near University Sports Pavilion
+• ⏰ **In-Timings:** 8:30 PM
+\n2. **Women's Post Graduate Hostel:**
+• **Blocks:** Gangotri Working Women & Students Complex
+• 📍 **Location:** North Campus, adjacent to University Guest House
+• ⏰ **In-Timings:** 7:30 PM strict policy
+\n🍲 **Amenities:** Modern mess facilities, Wi-Fi connectivity, RO water, and round-the-clock security.
+📞 **Hostel Warden Desk:** 0824-2287242
+\n__LOCATION__:12.8180,74.9240`,
+      source: 'local'
+    };
+  }
+
+  // H. Central Library
+  if (lower.includes('library') || lower.includes('ಗ್ರಂಥಾಲಯ') || lower.includes('granthalaya')) {
+    if (isKn) {
+      return {
+        answer: `### 📚 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ (Central Library)
+\n📍 **ಸ್ಥಳ:** ಮುಖ್ಯ ಆಡಳಿತ ಸೌಧದ ಎದುರು, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್, ಕೊಣಾಜೆ
+⏰ **ಸಮಯ:** ಸೋಮವಾರ - ಶನಿವಾರ: 8:00 AM – 8:00 PM (ಓದುವ ಕೊಠಡಿಗಳು)
+👤 **ಗ್ರಂಥಪಾಲಕರು:** Dr. M. Purushotham Gowda (ಮೊಬೈಲ್: 9449450671)
+📞 **ಸಂಪರ್ಕ:** 0824-2287234
+\n__LOCATION__:12.81661,74.92405`,
+        source: 'local'
+      };
+    }
+    return {
+      answer: `### 📚 Central University Library
+\n📍 **Location:** Opposite Administration Block, Mangalagangotri Campus, Konaje
+⏰ **Timings:** Monday to Friday: 8:00 AM – 8:00 PM | Saturday: 9:00 AM – 5:30 PM
+👤 **In-Charge Librarian:** Dr. M. Purushotham Gowda (Mobile: 9449450671)
+📞 **Librarian Desk:** 0824-2287234
+\n__LOCATION__:12.81661,74.92405`,
+      source: 'local'
+    };
+  }
+
+  // I. Banks & ATM
+  if (lower.includes('atm') || lower.includes('bank') || lower.includes('sbi') || lower.includes('canara') || lower.includes('ಬ್ಯಾಂಕ್')) {
+    return {
+      answer: `### 🏦 Banks & ATM Facilities on Campus
+\n1. **State Bank of India (SBI) - Mangalagangotri Branch & 24/7 ATM:**
+• 📍 **Location:** Adjacent to Administrative Block
+• ⏰ **Branch Timings:** 10:00 AM – 4:00 PM (Monday–Saturday)
+• 🏧 **ATM:** 24/7 Cash withdrawal & deposit kiosk.
+\n2. **Canara Bank ATM:**
+• 📍 **Location:** Shopping Complex, Main Arch Entrance Gate.
+• 🏧 24/7 ATM facility.
+\n__LOCATION__:12.8163,74.9252`,
+      source: 'local'
+    };
+  }
+
+  // J. Health Centre
+  if (lower.includes('health') || lower.includes('hospital') || lower.includes('doctor') || lower.includes('medical') || lower.includes('ಆಸ್ಪತ್ರೆ')) {
+    return {
+      answer: `### 🏥 University Health Centre (Medical Facilities)
+\n📍 **Location:** Near North Campus / Women's Hostel, Mangalagangotri
+⏰ **Timings:** 9:00 AM – 5:30 PM (Medical staff on emergency call)
+👨‍⚕️ **Services:**
+• Free general medical consultation and basic medicines for students & staff.
+• On-campus ambulance service for emergencies.
+📞 **Emergency Contact:** 0824-2287590 / 2287340
+\n__LOCATION__:12.8186,74.92436`,
+      source: 'local'
+    };
+  }
+
+  // K. Check direct department entity match
+  const departments = storage.getDepartments();
+  for (const entity of Object.values(departments)) {
+    const key = (entity.key || '').toLowerCase();
+    const name = (entity.name || '').toLowerCase();
+    if (lower === key || lower === name || (entity.aliases && entity.aliases.some(a => lower === a.toLowerCase()))) {
+      return {
+        answer: formatEntityResponse(entity, lang),
+        source: 'local'
+      };
+    }
+  }
+
+  // 2. Try Server-Side AI (Groq / Gemini / Unified coordinator)
+  try {
+    const aiRes = await fetch(getApiUrl("/api/ai/chat"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: trimmed, lang, history }),
+    });
+
+    if (aiRes.ok) {
+      const data = await aiRes.json();
+      if (data && data.answer && typeof data.answer === 'string') {
+        // If the answer is an actual intelligent answer (not a generic canned non-response)
+        if (!isGenericFallback(data.answer)) {
+          return {
+            answer: data.answer,
+            source: (data.source === 'groq' || data.source === 'gemini') ? data.source : 'remote'
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Backend chat route unreachable, checking local campus engine:', err);
+  }
+
+  // 3. Fallback Entity Matching across CAMPUS_DATA
   let bestMatch: CampusEntity | null = null;
   let bestScore = 0;
 
   for (const entity of Object.values(departments)) {
-    // Check key match
-    if (lower === entity.key.toLowerCase() || lower.includes(entity.key.toLowerCase())) {
+    // Check substring match
+    if (lower.includes(entity.key.toLowerCase()) || lower.includes(entity.name.toLowerCase())) {
       bestMatch = entity;
       bestScore = 1.0;
       break;
     }
 
-    // Check name match
-    if (lower === entity.name.toLowerCase() || lower.includes(entity.name.toLowerCase())) {
-      bestMatch = entity;
-      bestScore = 1.0;
-      break;
-    }
-
-    // Check aliases
     if (entity.aliases) {
       for (const alias of entity.aliases) {
         const aLower = alias.toLowerCase();
-        if (lower === aLower || lower.includes(aLower)) {
+        if (lower.includes(aLower)) {
           bestMatch = entity;
           bestScore = 0.95;
           break;
         }
-        // Substring token match
         const tokens = aLower.split(' ');
         if (tokens.every(t => lower.includes(t))) {
           bestMatch = entity;
@@ -267,23 +424,16 @@ export async function processChatMessage(
     };
   }
 
-  // 5. Friendly fallback response (use server synthesis if available, else local guide)
-  if (serverFallbackAnswer) {
+  // 4. Helpful Bilingual Campus Guide Response
+  if (isKn) {
     return {
-      answer: serverFallbackAnswer,
-      source: 'remote'
-    };
-  }
-
-  if (lang === 'kn') {
-    return {
-      answer: `ನನಗೆ "${trimmed}" ಬಗ್ಗೆ ನಿಖರವಾದ ಮಾಹಿತಿ ಸಿಗಲಿಲ್ಲ. \n\nನೀವು ಇವುಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು:\n• **ವಿಭಾಗಗಳು**: ವಿಜ್ಞಾನ ಬ್ಲಾಕ್ (Science Block), ಗಣಕ ವಿಜ್ಞಾನ (CS/MCA), ಭೌತಶಾಸ್ತ್ರ, ರಸಾಯನಶಾಸ್ತ್ರ, ಎಂಬಿಎ\n• **ಶುಲ್ಕ**: "MCA fee", "MBA fee", "UG fee"\n• **ಕಚೇರಿಗಳು**: ಕುಲಪತಿಗಳ ಕಚೇರಿ (VC), ಕುಲಸಚಿವರು, ಪರೀಕ್ಷಾ ವಿಭಾಗ\n• **ಸೌಲಭ್ಯಗಳು**: ಪುರುಷರ ಹಾಸ್ಟೆಲ್, ಮಹಿಳೆಯರ ಹಾಸ್ಟೆಲ್, ಗ್ರಂಥಾಲಯ, ಬ್ಯಾಂಕ್`,
+      answer: `ನನಗೆ "${trimmed}" ಬಗ್ಗೆ ನಿಖರವಾದ ದಾಖಲೆ ಸಿಗಲಿಲ್ಲ.\n\n📌 **ನೀವು ಹೀಗೆ ಕೇಳಬಹುದು:**\n• **ಶುಲ್ಕ ವಿವರಗಳು:** "MCA ಶುಲ್ಕ", "MBA ಶುಲ್ಕ", "ಪದವಿ ಶುಲ್ಕ"\n• **ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶ:** "ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳು", "UUCMS ಲಿಂಕ್"\n• **ವಿಭಾಗಗಳು & ಸ್ಥಳಗಳು:** "ವಿಜ್ಞಾನ ಬ್ಲಾಕ್", "ಗಣಕ ವಿಜ್ಞಾನ (MCA)", "ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ"\n• **ಸೌಲಭ್ಯಗಳು:** "ಹಾಸ್ಟೆಲ್ ಸಮಯ", "ಬಸ್ ಮಾರ್ಗ 51", "ಆಸ್ಪತ್ರೆ", "ಬ್ಯಾಂಕ್ ATM"\n• **ಕಚೇರಿಗಳು:** "ಕುಲಪತಿಗಳು (VC)", "ಕುಲಸಚಿವರು"`,
       source: 'local'
     };
   }
 
   return {
-    answer: `I couldn't find a direct record matching "${trimmed}".\n\nTry asking about:\n• **Departments & Buildings**: Science Block, Computer Science (MCA), Physics, Chemistry, MBA\n• **Fee Structures**: "MCA fee", "MBA fee", "UG fee", "PG fees"\n• **Administration**: Vice Chancellor, Registrar, Examination Section, Migration Certificate\n• **Campus Facilities**: Men's Hostel, Women's Hostel, Central Library, Health Centre`,
+    answer: `I couldn't find a direct campus match for "${trimmed}".\n\n📌 **Here are quick topics you can ask me right now:**\n• **Fee Structures:** *"What is the fee structure?"*, *"MCA course fee"*, *"MBA fee"*\n• **Examinations:** *"How to check exam results?"*, *"UUCMS portal link"*\n• **Locations & Blocks:** *"Where is Science Block?"*, *"Central Library"*, *"Computer Science"*\n• **Facilities & Travel:** *"Bus route to campus"*, *"Men's & Women's Hostel"*, *"SBI ATM"*\n• **Administration:** *"Who is the Vice Chancellor?"*, *"Registrar contact number"*\n\n💡 *Tip:* Check out the **AI Study Tutor** in the menu for instant syllabus exam notes!`,
     source: 'local'
   };
 }
