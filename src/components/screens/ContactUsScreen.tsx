@@ -8,13 +8,17 @@ interface ContactUsScreenProps {
 export const ContactUsScreen: React.FC<ContactUsScreenProps> = ({ onBack }) => {
   const contacts = [
     { title: "Vice Chancellor's Office", person: "Prof. P.L. Dharma", phone: "08242287347" },
-    { title: "Registrar's Office", person: "Dr. Ganesh Sanjeev", phone: "08242287276" },
-    { title: "Examination Section", person: "Dr. H Devendrappa (Registrar, Evaluation)", phone: "08242287327" },
+    { title: "Registrar (Administration)", person: "Sri K. Raju Mogaveera, KAS", phone: "08242287276" },
+    { title: "Examination Section", person: "Prof. H. Devendrappa (Registrar, Evaluation)", phone: "08242287327" },
     { title: "Finance Officer", person: "Sri Panchalingaswamy S.", phone: "08242287376" },
-    { title: "International Students Centre", person: "Dr. B.H. Shekar", phone: "9480146921" },
-    { title: "University Library", person: "Dr. M. Purushotham Gowda", phone: "9449450671" },
-    { title: "Hostel for Men", person: "Dr. Ramesh H.N.", phone: "08242287206" },
-    { title: "Hostel for Women", person: "Dr. H.L Shashirekha", phone: "08242287319" },
+    { title: "University Health Centre", person: "Campus Medical Officer", phone: "08242287590" },
+    { title: "University Library", person: "Dr. M. Purushotham Gowda (Librarian)", phone: "08242287234" },
+    { title: "Hostel for Men", person: "Dr. Ramesh H.N. (Faculty Advisor)", phone: "08242287206" },
+    { title: "Hostel for Women", person: "Dr. H.L Shashirekha (Faculty Advisor)", phone: "08242287319" },
+    { title: "Post Office (Mangalagangotri)", person: "Sub-Postmaster", phone: "08242287282" },
+    { title: "SBI Mangalagangotri Branch", person: "Branch Manager", phone: "08242287244" },
+    { title: "Security Control Room", person: "Chief Security Officer", phone: "9241266183" },
+    { title: "International Students Centre", person: "Dr. B.H. Shekar (Director)", phone: "9480146921" },
   ];
 
   const handleCall = (phone: string) => {

@@ -22,7 +22,8 @@ import {
   X,
   Download,
   FileText,
-  Printer
+  Printer,
+  Zap
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -30,6 +31,7 @@ import { Message, Language } from '../types';
 import { kStrings } from '../data/campusData';
 import { storage } from '../services/storage';
 import { processChatMessage } from '../services/chatEngine';
+import { aiService, ProviderStatus } from '../services/aiService';
 
 // Browser Web Speech API type declaration
 declare global {
@@ -63,6 +65,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -189,6 +192,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     } else {
       showWelcomeMessage();
     }
+    aiService.getProviderStatus().then(setProviderStatus).catch(() => {});
   }, []);
 
   // Update welcome message language only if user hasn't sent any messages yet
@@ -499,9 +503,21 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 <h1 className="font-semibold text-base tracking-tight text-slate-900 dark:text-white select-none leading-none">
                   {t('appBarTitle')}
                 </h1>
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold tracking-wider uppercase mt-0.5">
-                  <Sparkles className="w-2.5 h-2.5" />
-                  <span>AI Powered</span>
+                <span 
+                  className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold tracking-wider uppercase mt-0.5"
+                  title={providerStatus?.modelName || 'Campus AI Assistant'}
+                >
+                  {providerStatus?.groqConfigured ? (
+                    <>
+                      <Zap className="w-2.5 h-2.5 text-emerald-500 fill-emerald-500" />
+                      <span>Groq 70B</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>AI Powered</span>
+                    </>
+                  )}
                 </span>
               </div>
             </div>

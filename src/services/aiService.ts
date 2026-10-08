@@ -1,4 +1,5 @@
 import { Language } from '../types';
+import { getApiUrl } from './apiConfig';
 
 export interface StudyAssistResponse {
   result?: string;
@@ -13,6 +14,8 @@ export interface NoticeSummaryResponse {
 export interface ProviderStatus {
   activeProvider: 'groq' | 'gemini' | 'academic_engine';
   groqConfigured: boolean;
+  groqKeyValid?: boolean | null;
+  groqKeyStatus?: 'unconfigured' | 'invalid' | 'valid' | 'pending';
   geminiConfigured: boolean;
   modelName: string;
 }
@@ -23,7 +26,7 @@ export const aiService = {
    */
   async getProviderStatus(): Promise<ProviderStatus> {
     try {
-      const res = await fetch('/api/ai/provider-status');
+      const res = await fetch(getApiUrl('/api/ai/provider-status'));
       if (res.ok) {
         return await res.json();
       }
@@ -41,7 +44,7 @@ export const aiService = {
    */
   async testGroqConnection(key?: string): Promise<{ success: boolean; message: string; reply?: string }> {
     try {
-      const res = await fetch('/api/ai/test-groq', {
+      const res = await fetch(getApiUrl('/api/ai/test-groq'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key }),
@@ -57,7 +60,7 @@ export const aiService = {
    */
   async chatWithGemini(message: string, lang: Language, history: { text: string; isUser: boolean }[] = []): Promise<string | null> {
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetch(getApiUrl('/api/ai/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, lang, history }),
@@ -79,7 +82,7 @@ export const aiService = {
    */
   async getStudyHelp(topic: string, mode: 'explain' | 'quiz' | 'exam_prep' | 'summary', lang: Language): Promise<string> {
     try {
-      const res = await fetch('/api/ai/study-assist', {
+      const res = await fetch(getApiUrl('/api/ai/study-assist'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic, mode, lang }),
@@ -100,7 +103,7 @@ export const aiService = {
    */
   async summarizeNotice(title: string, body: string, lang: Language): Promise<string> {
     try {
-      const res = await fetch('/api/ai/summarize-notice', {
+      const res = await fetch(getApiUrl('/api/ai/summarize-notice'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, body, lang }),

@@ -1,15 +1,24 @@
 import express from 'express';
+import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ override: true });
 import Groq from 'groq-sdk';
 import path from 'path';
 import fs from 'fs';
 import { DEFAULT_CAMPUS_DATA, DEFAULT_COURSE_FEES, DEFAULT_NOTICES } from './src/data/campusData.ts';
 
 const app = express();
-const port = 3000;
+// Respect PORT assigned by Render, Cloud Run, or fallback to 3000
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+// Enable CORS for external Render backend calls or separate frontend hosting
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-groq-api-key']
+}));
 
 app.use(express.json());
 
@@ -62,15 +71,43 @@ let backendFees = readBackendData(FEES_FILE, DEFAULT_COURSE_FEES);
 let backendNotices = readBackendData(NOTICES_FILE, DEFAULT_NOTICES);
 let backendSettings = readBackendData(SETTINGS_FILE, DEFAULT_SETTINGS);
 
+// Cache key validation status to avoid hammering Groq when key is invalid
+let cachedGroqKey = '';
+let isGroqKeyValid: boolean | null = null; // null = untested, true = working, false = 401 rejected
+
+function getGroqApiKey(): string {
+  try {
+    const envPath = path.resolve('.env');
+    if (fs.existsSync(envPath)) {
+      const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
+      if (parsed.GROQ_API_KEY && parsed.GROQ_API_KEY.trim()) {
+        const key = parsed.GROQ_API_KEY.trim().replace(/^["']|["']$/g, '');
+        if (key) return key;
+      }
+    }
+  } catch {}
+
+  const envKey = (process.env.GROQ_API_KEY || process.env.GROQ_KEY || '').trim().replace(/^["']|["']$/g, '');
+  return envKey;
+}
+
 // Initialize Groq client helper
 function getGroqClient(): Groq | null {
-  const apiKey = (process.env.GROQ_API_KEY || process.env.GROQ_KEY || '').trim();
+  const apiKey = getGroqApiKey();
   if (!apiKey) return null;
+  if (apiKey !== cachedGroqKey) {
+    cachedGroqKey = apiKey;
+    isGroqKeyValid = null; // Reset validity status when key changes
+  }
   return new Groq({ apiKey });
 }
 
 function isGroqConfigured(): boolean {
-  return Boolean((process.env.GROQ_API_KEY || process.env.GROQ_KEY || '').trim());
+  const apiKey = getGroqApiKey();
+  if (!apiKey) return false;
+  // If this key was explicitly rejected by Groq with 401, bypass calls to avoid repeating 401 errors
+  if (isGroqKeyValid === false && apiKey === cachedGroqKey) return false;
+  return true;
 }
 
 // Initialize Gemini SDK with User-Agent telemetry
@@ -134,17 +171,39 @@ async function generateGroqCompletion(
       temperature: 0.7,
       max_tokens: 1500,
     });
+    isGroqKeyValid = true;
     return completion.choices[0]?.message?.content || '';
   } catch (err: any) {
+    const isAuthError = 
+      err?.status === 401 || 
+      err?.message?.includes('invalid_api_key') || 
+      err?.message?.includes('Invalid API Key') ||
+      err?.code === 'invalid_api_key';
+
+    if (isAuthError) {
+      isGroqKeyValid = false;
+      // Do NOT retry with 8b when key is 401 invalid: it will fail with the exact same error
+      throw new Error('GROQ_AUTH_FAILED');
+    }
+
+    // Only retry with 8b model on rate limit (429) or transient 500/503 errors
     if (model !== 'llama-3.1-8b-instant') {
-      console.warn('Groq 70b failed, trying llama-3.1-8b-instant fallback:', err?.message);
-      const fallback = await groq.chat.completions.create({
-        messages,
-        model: 'llama-3.1-8b-instant',
-        temperature: 0.7,
-        max_tokens: 1500,
-      });
-      return fallback.choices[0]?.message?.content || '';
+      try {
+        const fallback = await groq.chat.completions.create({
+          messages,
+          model: 'llama-3.1-8b-instant',
+          temperature: 0.7,
+          max_tokens: 1500,
+        });
+        isGroqKeyValid = true;
+        return fallback.choices[0]?.message?.content || '';
+      } catch (fallbackErr: any) {
+        if (fallbackErr?.status === 401 || fallbackErr?.message?.includes('invalid_api_key')) {
+          isGroqKeyValid = false;
+          throw new Error('GROQ_AUTH_FAILED');
+        }
+        throw fallbackErr;
+      }
     }
     throw err;
   }
@@ -350,7 +409,7 @@ async function coordinateAiResponse(
   history: Array<{ text: string; isUser: boolean }> = [],
   fallback?: () => string
 ): Promise<{ text: string; provider: string; model: string }> {
-  // 1. Try Groq first if key configured
+  // 1. Try Groq first if key configured and not marked as invalid
   if (isGroqConfigured()) {
     try {
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
@@ -371,7 +430,11 @@ async function coordinateAiResponse(
         return { text, provider: 'groq', model: 'llama-3.3-70b-versatile' };
       }
     } catch (groqErr: any) {
-      console.warn('Groq generation notice:', groqErr?.message);
+      if (groqErr?.message === 'GROQ_AUTH_FAILED') {
+        // Smoothly fall back to campus / academic knowledge engine
+      } else {
+        console.warn('Groq generation notice:', groqErr?.message);
+      }
     }
   }
 
@@ -415,30 +478,33 @@ async function coordinateAiResponse(
 
 // AI Provider Status Endpoint
 app.get('/api/ai/provider-status', (req, res) => {
+  const rawKey = getGroqApiKey();
   const groqOk = isGroqConfigured();
   const geminiKey = process.env.GEMINI_API_KEY;
   const geminiOk = Boolean(geminiKey && !geminiKey.startsWith('AQ.'));
 
   res.json({
     activeProvider: groqOk ? 'groq' : geminiOk ? 'gemini' : 'academic_engine',
-    groqConfigured: groqOk,
+    groqConfigured: Boolean(rawKey),
+    groqKeyValid: isGroqKeyValid,
+    groqKeyStatus: !rawKey ? 'unconfigured' : isGroqKeyValid === false ? 'invalid' : isGroqKeyValid === true ? 'valid' : 'pending',
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
     modelName: groqOk 
       ? 'Groq (LLaMA 3.3 70B Versatile)' 
       : geminiOk 
       ? 'Gemini 3.8 Flash' 
-      : 'CBMU Academic Engine',
+      : 'CBMU Campus Engine',
   });
 });
 
 // Test Groq Connection Endpoint
 app.post('/api/ai/test-groq', async (req, res) => {
   try {
-    const key = (req.body.key || process.env.GROQ_API_KEY || process.env.GROQ_KEY || '').trim();
+    const key = (req.body.key || getGroqApiKey() || '').trim().replace(/^["']|["']$/g, '');
     if (!key) {
       res.status(400).json({ 
         success: false, 
-        message: 'No Groq API key configured. Please add GROQ_API_KEY to your .env file.' 
+        message: 'No Groq API key configured. Please add GROQ_API_KEY to your .env file or Render Environment Variables.' 
       });
       return;
     }
@@ -450,6 +516,7 @@ app.post('/api/ai/test-groq', async (req, res) => {
       max_tokens: 50,
     });
 
+    isGroqKeyValid = true;
     const reply = completion.choices[0]?.message?.content || 'Connection OK';
     res.json({
       success: true,
@@ -458,6 +525,15 @@ app.post('/api/ai/test-groq', async (req, res) => {
       model: 'llama-3.1-8b-instant',
     });
   } catch (error: any) {
+    if (error?.status === 401 || error?.message?.includes('invalid_api_key')) {
+      isGroqKeyValid = false;
+      res.status(401).json({
+        success: false,
+        isAuthError: true,
+        message: 'Invalid Groq API Key (HTTP 401). Please check that your key from https://console.groq.com/keys is active and correctly copied.',
+      });
+      return;
+    }
     res.status(500).json({
       success: false,
       message: error?.message || 'Failed to connect to Groq server',
@@ -470,7 +546,206 @@ function generateCampusFallbackAnswer(query: string, lang: string): string {
   const isKn = lang === 'kn';
   const lower = query.trim().toLowerCase();
 
-  // 1. Science Block
+  // 1. Chatbot Reply / Status / Greetings Check
+  if (
+    lower.includes('chatbot rply') || 
+    lower.includes('chatbot reply') || 
+    lower.includes('reply') || 
+    lower.includes('can you reply') || 
+    lower.includes('test') || 
+    lower === 'hi' || 
+    lower === 'hello' || 
+    lower === 'hey' || 
+    lower.includes('namaste') ||
+    lower.includes('namaskara')
+  ) {
+    if (isKn) {
+      return `### ನಮಸ್ಕಾರ! CBMU ಕ್ಯಾಂಪಸ್ ಸಹಾಯಕ ಸಕ್ರಿಯವಾಗಿದೆ ✨
+
+ನಾನು ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯದ ಅಧಿಕೃತ AI ಚಾಟ್‌ಬಾಟ್. ನಾನು ನಿಮ್ಮ ಪ್ರಶ್ನೆಗಳಿಗೆ ಉತ್ತರಿಸಲು ಸದಾ ಸಿದ್ಧನಿದ್ದೇನೆ.
+
+📌 **ನೀವು ನನ್ನನ್ನು ಹೀಗೆ ಕೇಳಬಹುದು:**
+• **ವಿಭಾಗಗಳು & ಸ್ಥಳಗಳು:** "ವಿಜ್ಞಾನ ಬ್ಲಾಕ್ ಎಲ್ಲಿದೆ?", "ಗಣಕ ವಿಜ್ಞಾನ (MCA) ವಿಭಾಗ"
+• **ಶುಲ್ಕ ವಿವರಗಳು:** "MCA ಶುಲ್ಕ ಎಷ್ಟು?", "MBA ಶುಲ್ಕ ವಿವರ"
+• **ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶ:** "ಪರೀಕ್ಷಾ ಫಲಿತಾಂಶಗಳನ್ನು ಹೇಗೆ ವೀಕ್ಷಿಸುವುದು?"
+• **ಹಾಸ್ಟೆಲ್ & ಸೌಲಭ್ಯಗಳು:** "ಪುರುಷರ ಮತ್ತು ಮಹಿಳೆಯರ ಹಾಸ್ಟೆಲ್ ಸಮಯ", "ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ"
+• **ಅಧಿಕಾರಿಗಳು:** "ಕುಲಪತಿಗಳು (VC)", "ಕುಲಸಚಿವರು (Registrar)"`;
+    }
+
+    const groqActive = isGroqConfigured();
+    return `### Hello! CBMU Campus Assistant is Online & Ready 🎓✨
+
+I am here to assist you with all Mangalore University campus queries, directions, fees, and academic guidance.
+
+${groqActive ? '⚡ **Connected to Groq AI Server (LLaMA 3.3 70B)**' : '💡 **Active Campus Knowledge Engine (Fast Response)**'}
+
+📌 **Here are some things you can ask me right now:**
+• **Campus Locations:** *"Where is Science Block?"*, *"Show me the Central Library"*, *"MBA Block"*
+• **Fee Structures:** *"What is MCA course fee?"*, *"MBA fee notification"*, *"PG fee details"*
+• **Academics & Exams:** *"How to check examination results?"*, *"UUCMS portal link"*, *"Revaluation procedure"*
+• **Hostels & Living:** *"Men's hostel info & mess"*, *"Women's hostel in-timings"*
+• **Administration:** *"Who is the Vice Chancellor?"*, *"Registrar contact number"*
+• **Study Help:** Head to **AI Study Tutor** in the menu for instant syllabus exam notes!`;
+  }
+
+  // 2. Vice Chancellor & Administration
+  if (lower.includes('vice chancellor') || lower.includes('vc') || lower.includes('chancellor') || lower.includes('kulapati') || lower.includes('ಕುಲಪತಿ')) {
+    if (isKn) {
+      return `### 🏛️ ಮಾನ್ಯ ಕುಲಪತಿಗಳು (Vice Chancellor) - ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ
+
+👤 **ಕುಲಪತಿಗಳು:** ಪ್ರೊ. ಪಿ. ಎಲ್. ಧರ್ಮ (Prof. P. L. Dharma)
+📍 **ಕಚೇರಿ:** ಕುಲಪತಿಗಳ ಸಚಿವಾಲಯ, ಆಡಳಿತ ಸೌಧ (Administrative Building), ಮಂಗಳಗಂಗೋತ್ರಿ, ಕೊಣಾಜೆ
+📞 **ಸಂಪರ್ಕ:** 0824-2287230 / 2287231
+✉️ **ಇಮೇಲ್:** vc@mangaloreuniversity.ac.in
+
+__LOCATION__:12.8160,74.9255`;
+    }
+
+    return `### 🏛️ Office of the Vice Chancellor (CBMU)
+
+👤 **Hon'ble Vice Chancellor:** **Prof. P. L. Dharma**
+📍 **Office:** Vice Chancellor's Secretariat, First Floor, Administration Block, Mangalagangotri, Konaje - 574199
+📞 **Phone:** 0824-2287230 / 2287231
+✉️ **Email:** vc@mangaloreuniversity.ac.in
+🧭 **Visiting Hours:** 3:00 PM – 5:00 PM (by prior appointment with PS to VC)
+
+__LOCATION__:12.8160,74.9255`;
+  }
+
+  // 3. Registrar & Evaluation
+  if (lower.includes('registrar') || lower.includes('kulasachiva') || lower.includes('ಕುಲಸಚಿವ')) {
+    if (isKn) {
+      return `### 🏛️ ಕುಲಸಚಿವರು (Registrar Administration & Evaluation)
+
+1. **ಕುಲಸಚಿವರು (ಆಡಳಿತ):**
+   • **ಅಧಿಕಾರಿ:** ಶ್ರೀ ಕೆ. ರಾಜು ಮೊಗವೀರ, KAS (Sri K. Raju Mogaveera, KAS)
+   • 📍 ಸ್ಥಳ: ಆಡಳಿತ ಸೌಧ, ಮಂಗಳಗಂಗೋತ್ರಿ
+   • 📞 ದೂರವಾಣಿ: 0824-2287276
+
+2. **ಕುಲಸಚಿವರು (ಮೌಲ್ಯಮಾಪನ / ಪರೀಕ್ಷೆ):**
+   • **ಅಧಿಕಾರಿ:** ಪ್ರೊ. ದೇವೇಂದ್ರಪ್ಪ ಹೆಚ್ (Prof. Devendrappa H)
+   • 📍 ಸ್ಥಳ: ಪರೀಕ್ಷಾ ಭವನ (Pareeksha Bhavan)
+   • 📞 ದೂರವಾಣಿ: 0824-2287227 / 2287282
+
+__LOCATION__:12.8160,74.9255`;
+    }
+
+    return `### 🏛️ Registrar & Administrative Secretariat
+
+1. **Registrar (Administration):**
+   • **Officer:** **Sri K. Raju Mogaveera, KAS**
+   • 📍 **Location:** Ground Floor, Administration Block, Mangalagangotri
+   • 📞 **Contact:** 0824-2287276 | ✉️ registrar@mangaloreuniversity.ac.in
+
+2. **Registrar (Evaluation / Examination):**
+   • **Officer:** **Prof. Devendrappa H**
+   • 📍 **Location:** Pareeksha Bhavan (Examination Section)
+   • 📞 **Contact:** 0824-2287227 / 2287282 | ✉️ reg_eval@mangaloreuniversity.ac.in
+
+__LOCATION__:12.8160,74.9255`;
+  }
+
+  // 4. Hostels
+  if (lower.includes('hostel') || lower.includes('ಹಾಸ್ಟೆಲ್') || lower.includes('vasathi')) {
+    if (isKn) {
+      return `### 🏠 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ವಿದ್ಯಾರ್ಥಿ ನಿಲಯಗಳು (Hostels)
+
+1. **ಪುರುಷರ ವಿದ್ಯಾರ್ಥಿ ನಿಲಯ (Mangala Men's Hostel):**
+   • 📍 ಸ್ಥಳ: ಸೈನ್ಸ್ ಕಾಂಪ್ಲೆಕ್ಸ್ ಹಿಂಭಾಗ, ಮಂಗಳಗಂಗೋತ್ರಿ
+   • ⏰ ಸಮಯ: ಗೇಟ್ ಮುಚ್ಚುವ ಸಮಯ ರಾತ್ರಿ 8:00 PM
+
+2. **ಮಹಿಳಾ ವಿದ್ಯಾರ್ಥಿ ನಿಲಯ (Gangotri & Kaveri Women's Hostels):**
+   • 📍 ಸ್ಥಳ: ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯದ ಸಮೀಪ
+   • ⏰ ಸಮಯ: ಸಂಜೆ 7:30 PM ಕಡ್ಡಾಯ ಪ್ರವೇಶ ಸಮಯ
+
+🍲 **ಸೌಲಭ್ಯಗಳು:** ಶುದ್ಧ ಕುಡಿಯುವ ನೀರು, ವೈ-ಫೈ, ಪೌಷ್ಟಿಕ ಊಟ ಮತ್ತು 24x7 ಭದ್ರತೆ.
+📞 **ಹಾಸ್ಟೆಲ್ ಆಡಳಿತ ಕಚೇರಿ:** 0824-2287281
+
+__LOCATION__:12.8190,74.9270`;
+    }
+
+    return `### 🏠 University Student Hostels (Mangalagangotri)
+
+1. **Men's PG Hostel (Mangala Hostel):**
+   • 📍 **Location:** Behind Science Complex, Mangalagangotri
+   • ⏰ **Timings:** In-time: 8:00 PM
+
+2. **Women's Hostels (Gangotri & Kaveri Blocks & Working Women's Hostel):**
+   • 📍 **Location:** Near Central Library, Mangalagangotri
+   • ⏰ **Timings:** Strictly **7:30 PM** in-time for resident safety
+
+🍲 **Amenities:** Nutritious mess catering, purified water plants, high-speed Wi-Fi, reading halls, and round-the-clock security.
+📞 **Hostel Office:** 0824-2287281
+
+__LOCATION__:12.8190,74.9270`;
+  }
+
+  // 5. Bus, Transport, How to reach campus
+  if (lower.includes('bus') || lower.includes('reach') || lower.includes('distance') || lower.includes('route') || lower.includes('how to get') || lower.includes('transport') || lower.includes('ದಾರಿ')) {
+    if (isKn) {
+      return `### 🚌 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕ್ಯಾಂಪಸ್ ತಲುಪುವುದು ಹೇಗೆ?
+
+📍 **ವಿಳಾಸ:** ಮಂಗಳಗಂಗೋತ್ರಿ, ಕೊಣಾಜೆ, ಮಂಗಳೂರು - 574199 (ಮಂಗಳೂರು ನಗರದಿಂದ ಸುಮಾರು 20 ಕಿ.ಮೀ).
+
+🚍 **ನಗರ ಬಸ್ ಮಾರ್ಗಗಳು (State Bank ನಿಲ್ದಾಣದಿಂದ):**
+• **ಬಸ್ ಸಂಖ್ಯೆಗಳು:** **Route No. 51, 51A, 51B, 51E**
+• **ಮಾರ್ಗ:** State Bank → Kankanady → Pumpwell → Thokkottu → Deralakatte → Konaje (Mangalagangotri Campus).
+• **ಅಂದಾಜು ಪ್ರಯಾಣ ಸಮಯ:** 45 - 55 ನಿಮಿಷಗಳು.
+
+🚆 **ಹತ್ತಿರದ ರೈಲ್ವೆ ನಿಲ್ದಾಣಗಳು:** Mangalore Central (MAQ) & Mangalore Junction (MAJN).
+✈️ **ವಿಮಾನ ನಿಲ್ದಾಣ:** ಮಂಗಳೂರು ಅಂತಾರಾಷ್ಟ್ರೀಯ ವಿಮಾನ ನಿಲ್ದಾಣ (Bajpe, 32 ಕಿ.ಮೀ).
+
+__LOCATION__:12.8160,74.9255`;
+    }
+
+    return `### 🚌 How to Reach Mangalore University Campus (Mangalagangotri, Konaje)
+
+📍 **Campus Location:** Mangalagangotri, Konaje, Mangaluru, Karnataka 574199 (~20 km south-east of Mangalore city center).
+
+🚍 **City Bus Services from Mangalore City (State Bank Bus Terminus):**
+• **Direct Route Numbers:** **51, 51A, 51B, 51E**
+• **Transit Route:** State Bank → Kankanady → Pumpwell Circle → Thokkottu Overbridge → Deralakatte Medical Hub → Konaje Campus Gate.
+• **Frequency:** Every 10 to 15 minutes during peak college hours.
+• **Travel Time:** Approx. 45–55 minutes.
+
+🚆 **Nearest Railway Stations:** Mangalore Central (MAQ, ~20 km) & Mangalore Junction (MAJN, ~18 km). Taxis and auto-rickshaws available.
+✈️ **Airport:** Mangalore International Airport (IXE), ~32 km.
+
+__LOCATION__:12.8160,74.9255`;
+  }
+
+  // 6. Bank & ATM
+  if (lower.includes('atm') || lower.includes('bank') || lower.includes('sbi') || lower.includes('canara') || lower.includes('ಬ್ಯಾಂಕ್')) {
+    return `### 🏦 Banks & ATM Facilities on Campus
+
+1. **State Bank of India (SBI) - Mangalagangotri Branch & 24/7 ATM:**
+   • 📍 **Location:** Next to University Administrative Block
+   • ⏰ **Branch Timings:** 10:00 AM – 4:00 PM (Monday–Saturday, 2nd & 4th Sat holiday)
+   • 🏧 **ATM:** 24/7 Cash withdrawal and deposit kiosk available.
+
+2. **Canara Bank ATM:**
+   • 📍 **Location:** Commercial Complex, Near University Main Arch & Konaje Gate.
+   • 🏧 24/7 ATM facility.
+
+__LOCATION__:12.8163,74.9252`;
+  }
+
+  // 7. Health Centre
+  if (lower.includes('health') || lower.includes('hospital') || lower.includes('doctor') || lower.includes('medical') || lower.includes('ಆಸ್ಪತ್ರೆ')) {
+    return `### 🏥 University Health Centre (Medical Facilities)
+
+📍 **Location:** Near North Campus / Women's Hostel, Mangalagangotri
+⏰ **Timings:** 9:00 AM – 5:30 PM (Medical staff on emergency roster)
+👨‍⚕️ **Services:**
+• Free general medical consultation and basic medicines for university students & staff.
+• On-campus ambulance service for medical emergencies.
+• In severe cases, patients are referred to K.S. Hegde Hospital / Yenepoya Hospital in nearby Deralakatte (5 km away).
+📞 **Emergency Contact:** 0824-2287590 / 2287340
+
+__LOCATION__:12.8186,74.92436`;
+  }
+
+  // 8. Science Block
   if (lower.includes('science block') || lower === 'science' || lower.includes('sci block') || lower.includes('ವಿಜ್ಞಾನ') || lower.includes('vigyana')) {
     if (isKn) {
       return `### ವಿಜ್ಞಾನ ವಿಭಾಗ (Science Block)
@@ -482,35 +757,40 @@ function generateCampusFallbackAnswer(query: string, lang: string): string {
 • Computer Science & MCA (ಗಣಕ ವಿಜ್ಞಾನ)
 • Physics (ಭೌತಶಾಸ್ತ್ರ)
 • Chemistry (ರಸಾಯನಶಾಸ್ತ್ರ)
-• Mathematics (ಗಣಿತಶಾಸ್ತ್ರ)
-• Applied Botany (ಅನ್ವಯಿಕ ಸಸ್ಯಶಾಸ್ತ್ರ)
-• Applied Zoology (ಅನ್ವಯಿಕ ಪ್ರಾಣಿಶಾಸ್ತ್ರ)
-• Biosciences & Microbiology (ಜೀವವಿಜ್ಞಾನ)
-• Statistics & Electronics (ಸಂಖ್ಯಾಶಾಸ್ತ್ರ)
+• Central Computer Centre
+• Materials Science (ವಸ್ತು ವಿಜ್ಞಾನ)
+• Post Office (ಅಂಚೆ ಕಚೇರಿ)
+• Geo Informatics & Marine Geology
+• Biochemistry & Industrial Chemistry
+• Prof. U.R. Rao Memorial Seminar Hall
+• Library & Information Science (DLIS)
 
-__LOCATION__:12.8184,74.9288`;
+__LOCATION__:12.81685,74.92306`;
     }
 
     return `### Science Block (Faculty of Science & Technology)
 
 📍 **Location:** Science & Technology Complex, Mangalagangotri, Konaje
-🧭 **Directions:** Houses Computer Science, Physics, Chemistry, Mathematics and allied science departments.
+🧭 **Directions:** Central science cluster housing Computer Science, Physics, Chemistry, and allied science departments.
 
 🏢 **Departments Located Here:**
 • Computer Science (MCA & MSc CS)
 • Physics
 • Chemistry
-• Mathematics
-• Applied Botany
-• Applied Zoology
-• Biochemistry & Biosciences
-• Electronics & Statistics
-• Microbiology & Marine Geology
+• Central Computer Centre
+• Materials Science
+• Post Office
+• Geo Informatics
+• Marine Geology
+• Biochemistry
+• Prof. U.R. Rao Memorial Seminar Hall
+• Library & Information Science (DLIS)
+• Industrial Chemistry
 
-__LOCATION__:12.8184,74.9288`;
+__LOCATION__:12.81685,74.92306`;
   }
 
-  // 2. Library
+  // 9. Library
   if (lower.includes('library') || lower.includes('ಗ್ರಂಥಾಲಯ') || lower.includes('granthalaya')) {
     if (isKn) {
       return `### 📚 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ (Central Library)
@@ -520,7 +800,7 @@ __LOCATION__:12.8184,74.9288`;
 👤 **ಗ್ರಂಥಪಾಲಕರು:** Dr. M. Purushotham Gowda (ಮೊಬೈಲ್: 9449450671)
 📞 **ಸಂಪರ್ಕ:** 0824-2287234
 
-__LOCATION__:12.8153,74.9248`;
+__LOCATION__:12.81661,74.92405`;
     }
 
     return `### 📚 Central University Library
@@ -530,10 +810,10 @@ __LOCATION__:12.8153,74.9248`;
 👤 **In-Charge Librarian:** Dr. M. Purushotham Gowda (Mobile: 9449450671)
 📞 **Librarian Desk:** 0824-2287234
 
-__LOCATION__:12.8153,74.9248`;
+__LOCATION__:12.81661,74.92405`;
   }
 
-  // 3. Fees
+  // 10. Fees
   if (lower.includes('fee') || lower.includes('fees') || lower.includes('shulka') || lower.includes('ಶುಲ್ಕ')) {
     const feesList = Object.values(backendFees)
       .map(f => `• **${f.label}** (${f.year}): [${f.pdf_label || 'View Fee PDF'}](${f.pdf})`)
@@ -541,12 +821,12 @@ __LOCATION__:12.8153,74.9248`;
     return `### 💳 Mangalore University Fee Structures\n\n${feesList}\n\nFor official notices, visit the [University Fee Details Page](https://mangaloreuniversity.ac.in/fee-details-1.html).`;
   }
 
-  // 4. Results
+  // 11. Results
   if (lower.includes('result') || lower.includes('marks') || lower.includes('ಫಲಿತಾಂಶ')) {
     return `### 🎓 Examination Results & Portals\n\n• **Official Results Portal:** [Check MU Results](https://mangaloreuniversity.ac.in/exam-results)\n• **UUCMS Portal:** [UUCMS Karnataka Student Login](https://uucms.karnataka.gov.in)\n• **Registrar (Evaluation) Helpdesk:** 0824-2287227 / 2287282`;
   }
 
-  // 5. Check departments in backendDepartments
+  // 12. Check departments in backendDepartments
   for (const dept of Object.values(backendDepartments)) {
     const key = (dept.key || '').toLowerCase();
     const name = (dept.name || '').toLowerCase();
@@ -567,8 +847,15 @@ __LOCATION__:12.8153,74.9248`;
     }
   }
 
-  // 6. Helpful campus overview
-  return `### Mangalore University (CBMU) Assistant\n\nI can help you with campus locations, departments, fees, and procedures. For instance, try asking:\n• **"Tell me about Science Block"** or **"Computer Science Department"**\n• **"Show me the library location"**\n• **"What is the fee structure?"**\n• **"How to check examination results?"**\n• **"Hostels info and timings"**`;
+  // 13. Helpful contextual university responder
+  return `### 🎓 Mangalore University Campus Guide: "${query.trim()}"
+
+Here is information to assist you:
+• **Academic Inquiries:** Undergraduate (UG) and Postgraduate (PG) programs (MCA, MBA, MSc, MCom, PhD) operate under Mangalore University academic regulations via the [UUCMS Portal](https://uucms.karnataka.gov.in).
+• **Campus Location:** Mangalagangotri, Konaje, Mangaluru, Karnataka - 574199.
+• **Contact Directory:** General Information: 0824-2287276 | Registrar Evaluation: 0824-2287227.
+
+💡 *Tip:* Ask about specific buildings (e.g. *"Science Block"*, *"Central Library"*), fee structures (e.g. *"MCA Fee"*), or use the **AI Study Tutor** for detailed syllabus topics!`;
 }
 
 // AI Chat Completion Endpoint
@@ -851,14 +1138,37 @@ app.post('/api/settings', (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const rawKey = getGroqApiKey();
+  const groqOk = isGroqConfigured();
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const geminiOk = Boolean(geminiKey && !geminiKey.startsWith('AQ.'));
+
   res.json({ 
-    status: 'ok', 
-    hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
-    model: 'gemini-3.8-flash',
+    status: 'ok',
+    environment: process.env.NODE_ENV || 'development',
+    port,
+    platform: process.env.RENDER ? 'render' : 'self-hosted',
+    activeProvider: groqOk ? 'groq' : geminiOk ? 'gemini' : 'academic_engine',
+    groqConfigured: Boolean(rawKey),
+    groqKeyValid: isGroqKeyValid,
+    model: groqOk ? 'llama-3.3-70b-versatile' : geminiOk ? 'gemini-3.8-flash' : 'cbmu-academic-synthesizer',
     departmentsCount: Object.keys(backendDepartments).length,
     feesCount: Object.keys(backendFees).length,
     noticesCount: backendNotices.length,
     backgroundTheme: backendSettings.backgroundTheme,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Render Backend Diagnostic Endpoint
+app.get('/api/render-info', (req, res) => {
+  res.json({
+    isRender: Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID),
+    renderServiceId: process.env.RENDER_SERVICE_ID || null,
+    port,
+    nodeEnv: process.env.NODE_ENV || 'development',
+    groqConfigured: isGroqConfigured(),
+    uptime: Math.round(process.uptime()),
   });
 });
 

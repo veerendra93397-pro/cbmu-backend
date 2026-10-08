@@ -1,7 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, CheckCircle2, ChevronRight, Info, Moon, Sun, Monitor } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  CheckCircle2, 
+  ChevronRight, 
+  Info, 
+  Moon, 
+  Sun, 
+  Monitor, 
+  Server, 
+  Zap, 
+  RefreshCw,
+  AlertCircle
+} from 'lucide-react';
 import { ThemeMode, BackgroundTheme } from '../../types';
 import { storage } from '../../services/storage';
+import { aiService, ProviderStatus } from '../../services/aiService';
+import { getApiBaseUrl, setBackendUrl, getApiUrl } from '../../services/apiConfig';
 
 interface SettingsScreenProps {
   currentTheme: ThemeMode;
@@ -17,6 +31,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onBack,
 }) => {
   const [bgTheme, setBgTheme] = useState<BackgroundTheme>(() => storage.getSettings().backgroundTheme);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null);
+  const [backendUrlInput, setBackendUrlInput] = useState<string>(() => getApiBaseUrl());
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -25,6 +44,81 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     window.addEventListener('cbmu_data_updated', handleUpdate);
     return () => window.removeEventListener('cbmu_data_updated', handleUpdate);
   }, []);
+
+  useEffect(() => {
+    loadProviderStatus();
+  }, []);
+
+  const loadProviderStatus = async () => {
+    try {
+      const status = await aiService.getProviderStatus();
+      setProviderStatus(status);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const healthRes = await fetch(getApiUrl('/api/health'));
+      if (healthRes.ok) {
+        const data = await healthRes.json();
+        
+        // If Groq is configured, test the actual Groq API key live
+        if (data.groqConfigured) {
+          const groqTest = await aiService.testGroqConnection();
+          if (groqTest.success) {
+            setTestResult({
+              success: true,
+              message: `✅ Groq Server Connected & Verified! LLaMA 3.3 70B is active. (Port: ${data.port || 3000})`,
+            });
+          } else {
+            setTestResult({
+              success: false,
+              message: `⚠️ Server is online, but Groq API key was rejected (HTTP 401): ${groqTest.message}. Please generate a new key at console.groq.com/keys and update your .env or Render Environment Variables. Campus knowledge engine is active.`,
+            });
+          }
+        } else {
+          setTestResult({
+            success: true,
+            message: `✅ Backend Connected (Ready for GROQ_API_KEY). Campus Knowledge Engine active on port ${data.port || 3000}.`,
+          });
+        }
+      } else {
+        setTestResult({
+          success: false,
+          message: `Server returned status ${healthRes.status}. Check backend deployment.`,
+        });
+      }
+      await loadProviderStatus();
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err?.message || 'Could not reach server. Verify URL or network status.',
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleSaveBackendUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    setBackendUrl(backendUrlInput);
+    setSavedSuccess(true);
+    setTestResult(null);
+    setTimeout(() => setSavedSuccess(false), 2500);
+    handleTestConnection();
+  };
+
+  const handleResetBackendUrl = () => {
+    setBackendUrl('');
+    setBackendUrlInput('');
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2000);
+    handleTestConnection();
+  };
 
   const handleSelectBg = (themeKey: BackgroundTheme) => {
     setBgTheme(themeKey);
@@ -131,6 +225,137 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        {/* Backend Server & AI Engine Status (Render & Groq) */}
+        <div>
+          <div className="flex items-center justify-between px-1 mb-2.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+              Backend Server & AI Engine
+            </h3>
+            <span className="text-[10px] text-emerald-400 uppercase font-mono flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {providerStatus?.activeProvider === 'groq' ? 'Groq Active' : 'Online'}
+            </span>
+          </div>
+
+          <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-4 space-y-4">
+            {/* Active AI Status Pill */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-[#2A2A2A]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-white">Active AI Engine</div>
+                  <div className="text-[11px] text-neutral-400">
+                    {providerStatus?.modelName || 'Detecting engine...'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-right">
+                {providerStatus?.groqKeyStatus === 'invalid' ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    <AlertCircle className="w-3 h-3 text-amber-400" />
+                    Groq Key Invalid (401)
+                  </span>
+                ) : providerStatus?.groqConfigured ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Groq LLaMA 3.3
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Campus Engine
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Render Backend URL Configuration */}
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+                Backend Server URL <span className="text-neutral-500 font-normal">(Render / Local)</span>
+              </label>
+              <form onSubmit={handleSaveBackendUrl} className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={backendUrlInput}
+                    onChange={(e) => setBackendUrlInput(e.target.value)}
+                    placeholder="Default: /api (or https://your-app.onrender.com)"
+                    className="flex-1 bg-black/50 border border-[#2A2A2A] focus:border-emerald-500 focus:outline-hidden rounded-lg px-3 py-2 text-xs text-white placeholder-neutral-500 font-mono"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    Save
+                  </button>
+                  {backendUrlInput && (
+                    <button
+                      type="button"
+                      onClick={handleResetBackendUrl}
+                      className="px-2.5 py-2 bg-[#2A2A2A] hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                      title="Reset to default same-origin /api"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                {savedSuccess && (
+                  <p className="text-[11px] text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Backend URL saved successfully!
+                  </p>
+                )}
+              </form>
+            </div>
+
+            {/* Test Connection Button */}
+            <div className="pt-1 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={isTesting}
+                className="w-full py-2.5 px-3 bg-[#242424] hover:bg-[#2d2d2d] border border-[#333] rounded-lg text-xs font-medium text-neutral-200 flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin text-emerald-400' : ''}`} />
+                {isTesting ? 'Testing Server Connection...' : 'Test Backend & AI Connection'}
+              </button>
+
+              {testResult && (
+                <div className={`p-2.5 rounded-lg text-xs border ${
+                  testResult.success 
+                    ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300' 
+                    : 'bg-red-950/30 border-red-500/30 text-red-300'
+                }`}>
+                  {testResult.message}
+                </div>
+              )}
+            </div>
+
+            {/* Render & Groq Deployment Tips */}
+            <div className="p-3 bg-black/30 rounded-lg border border-[#222] text-[11px] text-neutral-400 space-y-1.5">
+              <div className="font-semibold text-neutral-300 flex items-center gap-1.5">
+                <Server className="w-3.5 h-3.5 text-emerald-400" />
+                Render & GitHub Deployment Guide
+              </div>
+              <p>
+                • <strong>Fix "Could not open requirements file: requirements.txt":</strong> In Render Settings, change <strong>Environment</strong> to <span className="text-white font-medium">Node</span>, Build Command to <code className="text-emerald-400">npm install && npm run build</code>, and Start Command to <code className="text-emerald-400">npm start</code>. Both Node and Python (<code className="text-emerald-400">requirements.txt</code>) are supported!
+              </p>
+              <p>
+                • <strong>Render Blueprint Ready:</strong> A pre-configured <code className="text-emerald-400">render.yaml</code> is included in your project root for instant 1-click Render Web Service builds.
+              </p>
+              <p>
+                • <strong>Connect Groq on Render:</strong> In your Render Dashboard &gt; <em>Environment Variables</em>, add <code className="text-emerald-400">GROQ_API_KEY=gsk_...</code> to enable high-speed LLaMA 3.3 70B inference.
+              </p>
+              <p>
+                • <strong>Local Server:</strong> Add <code className="text-emerald-400">GROQ_API_KEY=gsk_...</code> in your server's <code className="text-neutral-300">.env</code> file.
+              </p>
+            </div>
           </div>
         </div>
 

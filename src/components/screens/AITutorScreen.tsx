@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Sparkles, 
@@ -10,12 +10,13 @@ import {
   Copy, 
   Check, 
   RotateCw,
-  Lightbulb
+  Lightbulb,
+  Zap
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Language } from '../../types';
-import { aiService } from '../../services/aiService';
+import { aiService, ProviderStatus } from '../../services/aiService';
 
 interface AITutorScreenProps {
   onBack: () => void;
@@ -31,6 +32,11 @@ export const AITutorScreen: React.FC<AITutorScreenProps> = ({ onBack, lang }) =>
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null);
+
+  useEffect(() => {
+    aiService.getProviderStatus().then(setProviderStatus).catch(() => {});
+  }, []);
 
   const sampleTopics = [
     { label: 'Relational Database Normalization', mode: 'explain' as Mode },
@@ -89,7 +95,10 @@ export const AITutorScreen: React.FC<AITutorScreenProps> = ({ onBack, lang }) =>
               <h1 className="font-semibold text-base tracking-tight leading-tight">
                 {lang === 'kn' ? 'AI ಅಧ್ಯಯನ ಸಹಾಯಕ' : 'AI Study Tutor'}
               </h1>
-              <p className="text-[11px] text-emerald-400 font-medium">Powered by Gemini 3.8 Flash</p>
+              <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                <Zap className="w-2.5 h-2.5" />
+                <span>Powered by {providerStatus?.modelName || 'Groq & Campus AI'}</span>
+              </p>
             </div>
           </div>
         </div>

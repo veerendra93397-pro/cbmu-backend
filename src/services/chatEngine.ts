@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import { Language, CampusEntity, CourseFee } from '../types';
+import { getApiUrl } from './apiConfig';
 
 export interface ChatResponse {
   answer: string;
@@ -40,10 +41,10 @@ export async function processChatMessage(
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
 
-  // 1. Try server-side AI (Groq or Gemini)
+  // 1. Try server-side AI (Groq or Gemini or Campus Engine) via Render or local backend
   let serverFallbackAnswer: string | null = null;
   try {
-    const aiRes = await fetch("/api/ai/chat", {
+    const aiRes = await fetch(getApiUrl("/api/ai/chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: trimmed, lang, history }),
@@ -52,15 +53,15 @@ export async function processChatMessage(
     if (aiRes.ok) {
       const data = await aiRes.json();
       if (data && data.answer) {
-        // Return immediately if answered by active LLM (Groq or Gemini)
-        if (data.source === 'groq' || data.source === 'gemini') {
-          return { answer: data.answer, source: data.source };
-        }
-        serverFallbackAnswer = data.answer;
+        // Return server AI reply directly
+        return { 
+          answer: data.answer, 
+          source: (data.source === 'groq' || data.source === 'gemini') ? data.source : 'remote' 
+        };
       }
     }
-  } catch {
-    // If server AI route fails or is starting up, proceed with robust local campus engine
+  } catch (err) {
+    console.warn('Backend chat route unreachable, falling back to local campus engine:', err);
   }
 
   // 2. Local knowledge engine matching with latest admin-edited data
@@ -245,17 +246,21 @@ export async function processChatMessage(
 
     if (bestScore >= 0.9) break;
 
-    // Fuzzy matching against name & key
-    const simKey = calculateSimilarity(lower, entity.key);
-    const simName = calculateSimilarity(lower, entity.name.toLowerCase());
-    const score = Math.max(simKey, simName);
-    if (score > bestScore && score > 0.6) {
-      bestScore = score;
-      bestMatch = entity;
+    // Fuzzy matching against name & key only if query length is comparable
+    const lenDiffKey = Math.abs(lower.length - entity.key.length);
+    const lenDiffName = Math.abs(lower.length - entity.name.length);
+    if (lenDiffKey <= 3 || lenDiffName <= 4) {
+      const simKey = calculateSimilarity(lower, entity.key);
+      const simName = calculateSimilarity(lower, entity.name.toLowerCase());
+      const score = Math.max(simKey, simName);
+      if (score > bestScore && score >= 0.78) {
+        bestScore = score;
+        bestMatch = entity;
+      }
     }
   }
 
-  if (bestMatch && bestScore >= 0.6) {
+  if (bestMatch && bestScore >= 0.78) {
     return {
       answer: formatEntityResponse(bestMatch, lang),
       source: 'local'

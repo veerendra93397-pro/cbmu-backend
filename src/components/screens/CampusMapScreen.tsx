@@ -98,9 +98,22 @@ export const CampusMapScreen: React.FC<CampusMapScreenProps> = ({ onBack }) => {
             iconAnchor: [16, 32],
           });
 
+          const popupContent = `
+            <div style="min-width: 170px; font-family: sans-serif; color: #111;">
+              <b style="color: #059669; font-size: 13px; display: block; margin-bottom: 2px;">${dept.name}</b>
+              ${dept.location ? `<div style="font-size: 11px; color: #4B5563; margin-bottom: 3px;">📍 ${dept.location}</div>` : ''}
+              ${dept.contact ? `<div style="font-size: 10px; color: #6B7280; margin-bottom: 5px;">📞 ${dept.contact}</div>` : ''}
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${dept.lat},${dept.lng}&travelmode=walking" 
+                 target="_blank" rel="noopener noreferrer" 
+                 style="display: inline-block; padding: 4px 8px; background: #10A37F; color: white; border-radius: 4px; font-size: 10px; text-decoration: none; font-weight: 600;">
+                🚶 Walk Here (Google Maps)
+              </a>
+            </div>
+          `;
+
           L.marker([dept.lat, dept.lng], { icon: pinIcon })
             .addTo(map)
-            .bindPopup(`<b>${dept.name}</b><br/>${dept.location || ''}`);
+            .bindPopup(popupContent);
         }
       });
 

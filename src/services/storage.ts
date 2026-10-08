@@ -1,5 +1,6 @@
 import { CampusEntity, CourseFee, Notice, ThemeMode, Message, Language, AppSettings } from '../types';
 import { DEFAULT_CAMPUS_DATA, DEFAULT_COURSE_FEES, DEFAULT_NOTICES } from '../data/campusData';
+import { getApiUrl } from './apiConfig';
 
 const DEPARTMENTS_KEY = 'cbmu_departments';
 const FEES_KEY = 'cbmu_fees';
@@ -63,7 +64,20 @@ export const storage = {
     try {
       const data = localStorage.getItem(DEPARTMENTS_KEY);
       if (data) {
-        return JSON.parse(data);
+        const stored = JSON.parse(data);
+        // Merge with DEFAULT_CAMPUS_DATA to ensure newly added real GPS coordinates
+        // and all campus locations are instantly accessible
+        const merged: Record<string, CampusEntity> = { ...DEFAULT_CAMPUS_DATA };
+        for (const [key, entity] of Object.entries(stored as Record<string, CampusEntity>)) {
+          merged[key] = {
+            ...(merged[key] || {}),
+            ...entity,
+            lat: entity.lat != null ? entity.lat : merged[key]?.lat,
+            lng: entity.lng != null ? entity.lng : merged[key]?.lng,
+            location: entity.location || merged[key]?.location,
+          };
+        }
+        return merged;
       }
     } catch {
       // fallback
@@ -73,7 +87,7 @@ export const storage = {
 
   async syncDepartmentsFromBackend(): Promise<Record<string, CampusEntity>> {
     try {
-      const res = await fetch('/api/departments');
+      const res = await fetch(getApiUrl('/api/departments'));
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === 'object' && Object.keys(data).length > 0) {
@@ -92,7 +106,7 @@ export const storage = {
       localStorage.setItem(DEPARTMENTS_KEY, JSON.stringify(departments));
       notifyDataUpdated('departments');
       // Automatically synchronize with backend in background
-      fetch('/api/departments', {
+      fetch(getApiUrl('/api/departments'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(departments),
@@ -116,7 +130,7 @@ export const storage = {
 
   async syncFeesFromBackend(): Promise<Record<string, CourseFee>> {
     try {
-      const res = await fetch('/api/fees');
+      const res = await fetch(getApiUrl('/api/fees'));
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === 'object' && Object.keys(data).length > 0) {
@@ -135,7 +149,7 @@ export const storage = {
       localStorage.setItem(FEES_KEY, JSON.stringify(fees));
       notifyDataUpdated('fees');
       // Automatically synchronize with backend in background
-      fetch('/api/fees', {
+      fetch(getApiUrl('/api/fees'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fees),
@@ -159,7 +173,7 @@ export const storage = {
 
   async syncNoticesFromBackend(): Promise<Notice[]> {
     try {
-      const res = await fetch('/api/notices');
+      const res = await fetch(getApiUrl('/api/notices'));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -178,7 +192,7 @@ export const storage = {
       localStorage.setItem(NOTICES_KEY, JSON.stringify(notices));
       notifyDataUpdated('notices');
       // Automatically synchronize with backend in background
-      fetch('/api/notices', {
+      fetch(getApiUrl('/api/notices'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(notices),
@@ -202,7 +216,7 @@ export const storage = {
 
   async syncSettingsFromBackend(): Promise<AppSettings> {
     try {
-      const res = await fetch('/api/settings');
+      const res = await fetch(getApiUrl('/api/settings'));
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === 'object') {
@@ -224,7 +238,7 @@ export const storage = {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
       notifyDataUpdated('settings');
       // Automatically synchronize with backend in background
-      fetch('/api/settings', {
+      fetch(getApiUrl('/api/settings'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),

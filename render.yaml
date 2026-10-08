@@ -1,0 +1,26 @@
+# Render Blueprint Configuration (Infrastructure as Code)
+# Documentation: https://render.com/docs/blueprint-spec
+# This file automatically configures the Node.js full-stack web service on Render.
+# It sets the runtime explicitly to Node.js, eliminating the need for requirements.txt or Python setup.
+
+services:
+  - type: web
+    name: cbmu-campus-assistant
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 20
+      - key: PORT
+        value: 10000
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
