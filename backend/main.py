@@ -1,255 +1,708 @@
+
 import os
 import json
 import logging
-from typing import Optional, List, Dict, Any
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Initialize FastAPI app
-app = FastAPI(title="CBMU Campus Assistant Backend", version="1.0.0")
+# Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Enable CORS for external frontends or local dev
+# FastAPI application
+app = FastAPI(
+    title="CBMU Campus Assistant Backend",
+    version="1.0.0"
+)
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-DATA_DIR = Path("data")
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+# Data paths
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+
 DEPARTMENTS_FILE = DATA_DIR / "departments.json"
 FEES_FILE = DATA_DIR / "fees.json"
 NOTICES_FILE = DATA_DIR / "notices.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 
+# Create local data directory if possible
+try:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    logger.exception("Could not create data directory")
+
+
 def read_json_file(path: Path, default_val: Any) -> Any:
     try:
         if path.exists():
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception as e:
-        logging.error(f"Error reading {path}: {e}")
+            with path.open("r", encoding="utf-8") as file:
+                return json.load(file)
+    except Exception:
+        logger.exception("Could not read JSON file: %s", path.name)
+
     return default_val
 
-def write_json_file(path: Path, data: Any):
+
+def write_json_file(path: Path, data: Any) -> bool:
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        logging.error(f"Error writing {path}: {e}")
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as file:
+            json.dump(data, file, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        logger.exception("Could not write JSON file: %s", path.name)
+        return False
+
 
 backend_departments = read_json_file(DEPARTMENTS_FILE, {})
 backend_fees = read_json_file(FEES_FILE, {})
 backend_notices = read_json_file(NOTICES_FILE, [])
-backend_settings = read_json_file(SETTINGS_FILE, {"backgroundTheme": "default", "campusName": "Mangalore University"})
+backend_settings = read_json_file(
+    SETTINGS_FILE,
+    {
+        "backgroundTheme": "default",
+        "campusName": "Mangalore University"
+    }
+)
 
-# Groq client helper
-is_groq_key_valid = None
-
-def get_groq_client():
-    global is_groq_key_valid
-    api_key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
-    if not api_key:
-        return None
-    if is_groq_key_valid is False:
-        return None
-    try:
-        from groq import Groq
-        return Groq(api_key=api_key)
-    except Exception as e:
-        logging.error(f"Error initializing Groq: {e}")
-        return None
-
-def is_groq_configured() -> bool:
-    api_key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
-    return bool(api_key and is_groq_key_valid is not False)
-
+# Request models
 class ChatRequest(BaseModel):
     message: str
     lang: Optional[str] = "en"
-    history: Optional[List[Dict[str, Any]]] = []
+    history: List[Dict[str, Any]] = Field(default_factory=list)
+
 
 class StudyAssistRequest(BaseModel):
     topic: str
     mode: Optional[str] = "explain"
     lang: Optional[str] = "en"
 
+
 class NoticeSummaryRequest(BaseModel):
     title: Optional[str] = ""
     body: Optional[str] = ""
     lang: Optional[str] = "en"
 
+
 class TestGroqRequest(BaseModel):
     key: Optional[str] = None
 
-# Fallback responder
+
+# Groq helpers
+def get_groq_client():
+    api_key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
+
+    if not api_key:
+        logger.error("GROQ_API_KEY is missing or empty")
+        return None
+
+    try:
+        from groq import Groq
+        return Groq(api_key=api_key)
+    except Exception:
+        logger.exception("Could not initialize Groq client")
+        return None
+
+
+def is_groq_configured() -> bool:
+    api_key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
+    return bool(api_key)
+
+
+def groq_chat(messages, max_tokens=1000):
+    from groq import Groq
+
+    api_key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY is missing")
+
+    client = Groq(api_key=api_key)
+
+    return client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages,
+        temperature=0.7,
+        max_tokens=max_tokens
+    )
+
+
+# Campus fallback responder
 def generate_campus_fallback(query: str, lang: str = "en") -> str:
     lower = query.strip().lower()
-    is_kn = lang == "kn"
+    is_kn = (lang or "en").lower().startswith("kn")
 
-    if any(k in lower for k in ["chatbot rply", "chatbot reply", "reply", "can you reply", "test", "hi", "hello", "hey"]):
+    if any(k in lower for k in [
+        "chatbot rply", "chatbot reply", "reply",
+        "can you reply", "test", "hi", "hello", "hey"
+    ]):
         if is_kn:
-            return "### ನಮಸ್ಕಾರ! CBMU ಕ್ಯಾಂಪಸ್ ಸಹಾಯಕ ಸಕ್ರಿಯವಾಗಿದೆ ✨\n\nನಾನು ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯದ ಅಧಿಕೃತ AI ಚಾಟ್‌ಬಾಟ್. ನೀವು ವಿಭಾಗಗಳು, ಶುಲ್ಕ, ಹಾಸ್ಟೆಲ್ ಅಥವಾ ಅಧಿಕಾರಿಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು."
-        return f"### Hello! CBMU Campus Assistant is Online & Ready 🎓✨\n\nI am the official campus AI assistant for Mangalore University (Konaje, Mangalagangotri).\n\n• **Campus Locations:** 'Where is Science Block?', 'Show me the Central Library'\n• **Fees & Courses:** 'MCA fee structure', 'MBA fees'\n• **Academics:** 'How to check exam results?', 'UUCMS portal'\n• **Hostels & Facilities:** 'Hostel timings and mess', 'Bank & ATM'"
+            return (
+                "### ನಮಸ್ಕಾರ! CBMU ಕ್ಯಾಂಪಸ್ ಸಹಾಯಕ ಸಕ್ರಿಯವಾಗಿದೆ ✨\n\n"
+                "ನಾನು ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯದ ಕ್ಯಾಂಪಸ್ ಸಹಾಯಕ. "
+                "ವಿಭಾಗಗಳು, ಶುಲ್ಕ, ಹಾಸ್ಟೆಲ್ ಅಥವಾ ಕ್ಯಾಂಪಸ್ ಸ್ಥಳಗಳ ಬಗ್ಗೆ ಕೇಳಿ."
+            )
 
-    if "vice chancellor" in lower or "vc" in lower:
-        return "### 🏛️ Office of the Vice Chancellor (CBMU)\n\n👤 **Hon'ble Vice Chancellor:** **Prof. P. L. Dharma**\n📍 **Office:** First Floor, Administration Block, Mangalagangotri, Konaje - 574199\n📞 **Phone:** 0824-2287230\n\n__LOCATION__:12.8160,74.9255"
+        return (
+            "### Hello! CBMU Campus Assistant is Online 🎓✨\n\n"
+            "I can help with Mangalore University campus information.\n\n"
+            "- **Campus Locations:** Science Block, Central Library\n"
+            "- **Fees & Courses:** MCA fee structure, MBA fees\n"
+            "- **Academics:** Exam results, UUCMS portal\n"
+            "- **Facilities:** Hostels, bank and ATM"
+        )
+
+    if "vice chancellor" in lower or lower.strip() == "vc":
+        return (
+            "### Office of the Vice Chancellor\n\n"
+            "📍 Administration Block, Mangalagangotri, Konaje.\n\n"
+            "__LOCATION__:12.8160,74.9255"
+        )
 
     if "registrar" in lower:
-        return "### 🏛️ Registrar Secretariat\n\n• **Registrar (Administration):** Sri K. Raju Mogaveera, KAS (0824-2287276)\n• **Registrar (Evaluation):** Prof. Devendrappa H (0824-2287227)\n📍 Administration Block, Mangalagangotri\n\n__LOCATION__:12.8160,74.9255"
+        return (
+            "### Registrar Secretariat\n\n"
+            "📍 Administration Block, Mangalagangotri, Konaje.\n\n"
+            "__LOCATION__:12.8160,74.9255"
+        )
 
     if "hostel" in lower:
-        return "### 🏠 Student Hostels (Mangalagangotri)\n\n• **Men's Hostel:** Behind Science Complex (In-time: 8:00 PM)\n• **Women's Hostels (Gangotri & Kaveri):** Near Library (In-time: 7:30 PM)\n📞 **Hostel Office:** 0824-2287281\n\n__LOCATION__:12.8190,74.9270"
+        return (
+            "### Student Hostels\n\n"
+            "Please confirm hostel availability and current rules "
+            "with the university hostel office.\n\n"
+            "__LOCATION__:12.8190,74.9270"
+        )
 
     if "science" in lower:
-        return "### Science Block (Faculty of Science & Technology)\n\n📍 **Location:** Science Complex, Mangalagangotri\n🏢 Houses Computer Science (MCA), Physics, Chemistry, Mathematics and Biosciences.\n\n__LOCATION__:12.8184,74.9288"
+        return (
+            "### Science Block\n\n"
+            "📍 Science Complex, Mangalagangotri.\n\n"
+            "__LOCATION__:12.8184,74.9288"
+        )
 
     if "library" in lower:
-        return "### 📚 Central University Library\n\n📍 Opposite Administration Block\n⏰ Open Mon-Sat: 8:00 AM – 8:00 PM\n👤 Librarian: Dr. M. Purushotham Gowda (0824-2287234)\n\n__LOCATION__:12.8153,74.9248"
+        return (
+            "### Central University Library\n\n"
+            "📍 Near the Administration Block, Mangalagangotri.\n\n"
+            "__LOCATION__:12.8153,74.9248"
+        )
 
-    return f"### 🎓 Mangalore University Campus Guide: '{query}'\n\nI can assist you with campus locations, official fees, hostel procedures, and exams.\nTry asking: *'Science Block'*, *'MCA fee'*, *'Central Library'*, or *'Exam results'*."
+    return (
+        f"### CBMU Campus Guide: '{query}'\n\n"
+        "I can help with campus locations, departments, courses, fees, "
+        "hostels and examination information.\n\n"
+        "Try asking about the Science Block, Central Library or MCA course."
+    )
 
+
+# Health and provider status
 @app.get("/api/health")
 def health():
     groq_ok = is_groq_configured()
-    port = int(os.getenv("PORT", 3000))
+
     return {
         "status": "ok",
         "environment": os.getenv("NODE_ENV", "production"),
         "runtime": "python-fastapi",
-        "port": port,
-        "platform": "render" if os.getenv("RENDER") else "self-hosted",
+        "platform": "vercel" if os.getenv("VERCEL") else "self-hosted",
         "activeProvider": "groq" if groq_ok else "campus_engine",
         "groqConfigured": groq_ok,
-        "model": "llama-3.3-70b-versatile" if groq_ok else "cbmu-knowledge-base"
+        "model": (
+            "llama-3.3-70b-versatile"
+            if groq_ok else "cbmu-knowledge-base"
+        )
     }
+
 
 @app.get("/api/render-info")
 def render_info():
     return {
-        "isRender": bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID")),
-        "renderServiceId": os.getenv("RENDER_SERVICE_ID"),
-        "port": int(os.getenv("PORT", 3000)),
+        "isRender": bool(
+            os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID")
+        ),
         "groqConfigured": is_groq_configured()
     }
+
 
 @app.get("/api/ai/provider-status")
 def provider_status():
     groq_ok = is_groq_configured()
+
     return {
-        "activeProvider": "groq" if groq_ok else "academic_engine",
+        "activeProvider": "groq" if groq_ok else "campus_engine",
         "groqConfigured": groq_ok,
         "geminiConfigured": bool(os.getenv("GEMINI_API_KEY")),
-        "modelName": "Groq (LLaMA 3.3 70B Versatile)" if groq_ok else "CBMU Campus Engine"
+        "modelName": (
+            "Groq (LLaMA 3.3 70B Versatile)"
+            if groq_ok else "CBMU Campus Engine"
+        )
     }
 
+
+# Test Groq API
 @app.post("/api/ai/test-groq")
 def test_groq(req: TestGroqRequest):
-    key = req.key or os.getenv("GROQ_API_KEY", "")
+    # Normally use the server-side environment variable.
+    # An optional supplied key is retained for compatibility.
+    key = (req.key or os.getenv("GROQ_API_KEY", "")).strip()
+
     if not key:
-        raise HTTPException(status_code=400, detail="No Groq key provided or configured.")
+        raise HTTPException(
+            status_code=400,
+            detail="GROQ_API_KEY is missing."
+        )
+
     try:
         from groq import Groq
-        client = Groq(api_key=key.strip())
-        res = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": "Say: Groq server connected successfully in 1 sentence."}],
-            max_tokens=30
-        )
-        return {"success": True, "message": "Groq server connected successfully!", "reply": res.choices[0].message.content}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
+        client = Groq(api_key=key)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Reply in one sentence: Groq connection successful."
+                }
+            ],
+            max_tokens=50
+        )
+
+        return {
+            "success": True,
+            "message": "Groq server connected successfully!",
+            "reply": response.choices[0].message.content,
+            "model": "llama-3.3-70b-versatile"
+        }
+
+    except Exception:
+        logger.exception("Groq connection test failed")
+        raise HTTPException(
+            status_code=502,
+            detail="Groq request failed. Check Vercel runtime logs and API configuration."
+        )
+
+
+# Main chatbot endpoint
 @app.post("/api/ai/chat")
 def chat(req: ChatRequest):
     groq = get_groq_client()
+
     if groq:
         try:
-            sys_prompt = "You are the official AI Assistant for Mangalore University (CBMU), located in Mangalagangotri, Konaje, Karnataka. Provide concise, helpful responses in English or Kannada as requested. Append __LOCATION__:lat,lng when mentioning campus buildings."
-            messages = [{"role": "system", "content": sys_prompt}]
-            for h in (req.history or [])[-6:]:
-                messages.append({"role": "user" if h.get("isUser") else "assistant", "content": h.get("text", "")})
+            system_prompt = (
+                "You are the CBMU Campus Assistant for Mangalore University "
+                "at Mangalagangotri, Konaje, Karnataka. Answer helpfully and "
+                "concisely in the user's requested language. Do not invent "
+                "official fees, contact details or policies. When you know "
+                "a campus building's coordinates, append __LOCATION__:lat,lng."
+            )
+
+            messages = [{"role": "system", "content": system_prompt}]
+
+            for item in (req.history or [])[-6:]:
+                text = item.get("text", "")
+                if not isinstance(text, str) or not text.strip():
+                    continue
+
+                role = "user" if item.get("isUser") else "assistant"
+                messages.append({"role": role, "content": text})
+
             messages.append({"role": "user", "content": req.message})
 
-            resp = groq.chat.completions.create(
+            response = groq.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages,
                 temperature=0.7,
                 max_tokens=1000
             )
-            answer = resp.choices[0].message.content
-            return {"answer": answer, "source": "groq", "model": "llama-3.3-70b-versatile"}
-        except Exception as e:
-            if "401" in str(e) or "invalid_api_key" in str(e):
-                global is_groq_key_valid
-                is_groq_key_valid = False
-            logging.info(f"Groq unavailable ({e}), using verified campus knowledge engine")
 
-    # Fallback
+            answer = response.choices[0].message.content
+
+            if answer:
+                return {
+                    "answer": answer,
+                    "source": "groq",
+                    "model": "llama-3.3-70b-versatile"
+                }
+
+            logger.error("Groq returned an empty answer")
+
+        except Exception:
+            logger.exception("Groq chat request failed")
+
     answer = generate_campus_fallback(req.message, req.lang or "en")
-    return {"answer": answer, "source": "remote", "model": "cbmu-knowledge-base"}
-
-@app.post("/api/ai/study-assist")
-def study_assist(req: StudyAssistRequest):
-    groq = get_groq_client()
-    if groq:
-        try:
-            resp = groq.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": "You are a university academic professor. Provide detailed exam study guidance and revision notes."},
-                    {"role": "user", "content": f"Topic: {req.topic}, Mode: {req.mode}, Language: {req.lang}"}
-                ],
-                max_tokens=1200
-            )
-            return {"result": resp.choices[0].message.content, "provider": "groq"}
-        except Exception as e:
-            logging.warn(f"Groq study assist failed: {e}")
 
     return {
-        "result": f"### Academic Study Guide: {req.topic}\n\n1. **Core Concept:** Foundational topic in university syllabus.\n2. **Key Formulas & Theorems:** Review governing principles.\n3. **Exam Tips:** Always write formal definition, illustrate with diagrams, and list real-world applications.",
+        "answer": answer,
+        "source": "remote",
+        "model": "cbmu-knowledge-base"
+    }
+
+
+# Study assistance
+@app.post("/api/ai/study-assist")
+def study_assist(req: StudyAssistRequest):
+    try:
+        response = groq_chat(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a university study assistant. Explain topics "
+                        "clearly, provide revision notes, and do not invent facts."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Topic: {req.topic}\n"
+                        f"Mode: {req.mode}\n"
+                        f"Language: {req.lang}"
+                    )
+                }
+            ],
+            max_tokens=1200
+        )
+
+        return {
+            "result": response.choices[0].message.content,
+            "provider": "groq"
+        }
+
+    except Exception:
+        logger.exception("Groq study assistance failed")
+
+    return {
+        "result": (
+            f"### Academic Study Guide: {req.topic}\n\n"
+            "1. **Core Concept:** Review the topic's foundational ideas.\n"
+            "2. **Key Concepts:** Review definitions, examples and formulas.\n"
+            "3. **Exam Tips:** Practise explaining the topic with examples."
+        ),
         "provider": "academic_engine"
     }
 
+
+# Department data
 @app.get("/api/departments")
 def get_departments():
     return backend_departments
+
 
 @app.post("/api/departments")
 def save_departments(data: Dict[str, Any]):
     global backend_departments
     backend_departments = data
-    write_json_file(DEPARTMENTS_FILE, backend_departments)
-    return {"success": True}
+    saved = write_json_file(DEPARTMENTS_FILE, backend_departments)
 
+    return {
+        "success": saved,
+        "data": backend_departments
+    }
+
+
+# Fees
 @app.get("/api/fees")
 def get_fees():
     return backend_fees
 
+
+# Notices
 @app.get("/api/notices")
 def get_notices():
     return backend_notices
 
+
+# Settings
 @app.get("/api/settings")
 def get_settings():
     return backend_settings
 
-# Mount static dist files if compiled
-dist_path = Path("dist")
-if dist_path.exists():
-    app.mount("/", StaticFiles(directory="dist", html=True), name="static")
+
+# Optional frontend static files
+dist_path = BASE_DIR / "dist"
+
+if dist_path.is_dir():
+    app.mount(
+        "/",
+        StaticFiles(directory=str(dist_path), html=True),
+        name="static"
+    )
+
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 3000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
+    port = int(os.getenv("PORT", "3000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+# import os
+# import json
+# import logging
+# from typing import Optional, List, Dict, Any
+# from pathlib import Path
+
+# from fastapi import FastAPI, Request, HTTPException
+# from fastapi.middleware.cors import CORSMiddleware
+# from fastapi.responses import JSONResponse, FileResponse
+# from fastapi.staticfiles import StaticFiles
+# from pydantic import BaseModel
+# from dotenv import load_dotenv
+
+# load_dotenv()
+
+# # Initialize FastAPI app
+# app = FastAPI(title="CBMU Campus Assistant Backend", version="1.0.0")
+
+# # Enable CORS for external frontends or local dev
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+# DATA_DIR = Path("data")
+# DATA_DIR.mkdir(parents=True, exist_ok=True)
+# DEPARTMENTS_FILE = DATA_DIR / "departments.json"
+# FEES_FILE = DATA_DIR / "fees.json"
+# NOTICES_FILE = DATA_DIR / "notices.json"
+# SETTINGS_FILE = DATA_DIR / "settings.json"
+
+# def read_json_file(path: Path, default_val: Any) -> Any:
+#     try:
+#         if path.exists():
+#             with open(path, "r", encoding="utf-8") as f:
+#                 return json.load(f)
+#     except Exception as e:
+#         logging.error(f"Error reading {path}: {e}")
+#     return default_val
+
+# def write_json_file(path: Path, data: Any):
+#     try:
+#         with open(path, "w", encoding="utf-8") as f:
+#             json.dump(data, f, indent=2, ensure_ascii=False)
+#     except Exception as e:
+#         logging.error(f"Error writing {path}: {e}")
+
+# backend_departments = read_json_file(DEPARTMENTS_FILE, {})
+# backend_fees = read_json_file(FEES_FILE, {})
+# backend_notices = read_json_file(NOTICES_FILE, [])
+# backend_settings = read_json_file(SETTINGS_FILE, {"backgroundTheme": "default", "campusName": "Mangalore University"})
+
+# # Groq client helper
+# is_groq_key_valid = None
+
+# def get_groq_client():
+#     global is_groq_key_valid
+#     api_key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
+#     if not api_key:
+#         return None
+#     if is_groq_key_valid is False:
+#         return None
+#     try:
+#         from groq import Groq
+#         return Groq(api_key=api_key)
+#     except Exception as e:
+#         logging.error(f"Error initializing Groq: {e}")
+#         return None
+
+# def is_groq_configured() -> bool:
+#     api_key = os.getenv("GROQ_API_KEY", "").strip().strip('"').strip("'")
+#     return bool(api_key and is_groq_key_valid is not False)
+
+# class ChatRequest(BaseModel):
+#     message: str
+#     lang: Optional[str] = "en"
+#     history: Optional[List[Dict[str, Any]]] = []
+
+# class StudyAssistRequest(BaseModel):
+#     topic: str
+#     mode: Optional[str] = "explain"
+#     lang: Optional[str] = "en"
+
+# class NoticeSummaryRequest(BaseModel):
+#     title: Optional[str] = ""
+#     body: Optional[str] = ""
+#     lang: Optional[str] = "en"
+
+# class TestGroqRequest(BaseModel):
+#     key: Optional[str] = None
+
+# # Fallback responder
+# def generate_campus_fallback(query: str, lang: str = "en") -> str:
+#     lower = query.strip().lower()
+#     is_kn = lang == "kn"
+
+#     if any(k in lower for k in ["chatbot rply", "chatbot reply", "reply", "can you reply", "test", "hi", "hello", "hey"]):
+#         if is_kn:
+#             return "### ನಮಸ್ಕಾರ! CBMU ಕ್ಯಾಂಪಸ್ ಸಹಾಯಕ ಸಕ್ರಿಯವಾಗಿದೆ ✨\n\nನಾನು ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯದ ಅಧಿಕೃತ AI ಚಾಟ್‌ಬಾಟ್. ನೀವು ವಿಭಾಗಗಳು, ಶುಲ್ಕ, ಹಾಸ್ಟೆಲ್ ಅಥವಾ ಅಧಿಕಾರಿಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು."
+#         return f"### Hello! CBMU Campus Assistant is Online & Ready 🎓✨\n\nI am the official campus AI assistant for Mangalore University (Konaje, Mangalagangotri).\n\n• **Campus Locations:** 'Where is Science Block?', 'Show me the Central Library'\n• **Fees & Courses:** 'MCA fee structure', 'MBA fees'\n• **Academics:** 'How to check exam results?', 'UUCMS portal'\n• **Hostels & Facilities:** 'Hostel timings and mess', 'Bank & ATM'"
+
+#     if "vice chancellor" in lower or "vc" in lower:
+#         return "### 🏛️ Office of the Vice Chancellor (CBMU)\n\n👤 **Hon'ble Vice Chancellor:** **Prof. P. L. Dharma**\n📍 **Office:** First Floor, Administration Block, Mangalagangotri, Konaje - 574199\n📞 **Phone:** 0824-2287230\n\n__LOCATION__:12.8160,74.9255"
+
+#     if "registrar" in lower:
+#         return "### 🏛️ Registrar Secretariat\n\n• **Registrar (Administration):** Sri K. Raju Mogaveera, KAS (0824-2287276)\n• **Registrar (Evaluation):** Prof. Devendrappa H (0824-2287227)\n📍 Administration Block, Mangalagangotri\n\n__LOCATION__:12.8160,74.9255"
+
+#     if "hostel" in lower:
+#         return "### 🏠 Student Hostels (Mangalagangotri)\n\n• **Men's Hostel:** Behind Science Complex (In-time: 8:00 PM)\n• **Women's Hostels (Gangotri & Kaveri):** Near Library (In-time: 7:30 PM)\n📞 **Hostel Office:** 0824-2287281\n\n__LOCATION__:12.8190,74.9270"
+
+#     if "science" in lower:
+#         return "### Science Block (Faculty of Science & Technology)\n\n📍 **Location:** Science Complex, Mangalagangotri\n🏢 Houses Computer Science (MCA), Physics, Chemistry, Mathematics and Biosciences.\n\n__LOCATION__:12.8184,74.9288"
+
+#     if "library" in lower:
+#         return "### 📚 Central University Library\n\n📍 Opposite Administration Block\n⏰ Open Mon-Sat: 8:00 AM – 8:00 PM\n👤 Librarian: Dr. M. Purushotham Gowda (0824-2287234)\n\n__LOCATION__:12.8153,74.9248"
+
+#     return f"### 🎓 Mangalore University Campus Guide: '{query}'\n\nI can assist you with campus locations, official fees, hostel procedures, and exams.\nTry asking: *'Science Block'*, *'MCA fee'*, *'Central Library'*, or *'Exam results'*."
+
+# @app.get("/api/health")
+# def health():
+#     groq_ok = is_groq_configured()
+#     port = int(os.getenv("PORT", 3000))
+#     return {
+#         "status": "ok",
+#         "environment": os.getenv("NODE_ENV", "production"),
+#         "runtime": "python-fastapi",
+#         "port": port,
+#         "platform": "render" if os.getenv("RENDER") else "self-hosted",
+#         "activeProvider": "groq" if groq_ok else "campus_engine",
+#         "groqConfigured": groq_ok,
+#         "model": "llama-3.3-70b-versatile" if groq_ok else "cbmu-knowledge-base"
+#     }
+
+# @app.get("/api/render-info")
+# def render_info():
+#     return {
+#         "isRender": bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID")),
+#         "renderServiceId": os.getenv("RENDER_SERVICE_ID"),
+#         "port": int(os.getenv("PORT", 3000)),
+#         "groqConfigured": is_groq_configured()
+#     }
+
+# @app.get("/api/ai/provider-status")
+# def provider_status():
+#     groq_ok = is_groq_configured()
+#     return {
+#         "activeProvider": "groq" if groq_ok else "academic_engine",
+#         "groqConfigured": groq_ok,
+#         "geminiConfigured": bool(os.getenv("GEMINI_API_KEY")),
+#         "modelName": "Groq (LLaMA 3.3 70B Versatile)" if groq_ok else "CBMU Campus Engine"
+#     }
+
+# @app.post("/api/ai/test-groq")
+# def test_groq(req: TestGroqRequest):
+#     key = req.key or os.getenv("GROQ_API_KEY", "")
+#     if not key:
+#         raise HTTPException(status_code=400, detail="No Groq key provided or configured.")
+#     try:
+#         from groq import Groq
+#         client = Groq(api_key=key.strip())
+#         res = client.chat.completions.create(
+#             model="llama-3.1-8b-instant",
+#             messages=[{"role": "user", "content": "Say: Groq server connected successfully in 1 sentence."}],
+#             max_tokens=30
+#         )
+#         return {"success": True, "message": "Groq server connected successfully!", "reply": res.choices[0].message.content}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+# @app.post("/api/ai/chat")
+# def chat(req: ChatRequest):
+#     groq = get_groq_client()
+#     if groq:
+#         try:
+#             sys_prompt = "You are the official AI Assistant for Mangalore University (CBMU), located in Mangalagangotri, Konaje, Karnataka. Provide concise, helpful responses in English or Kannada as requested. Append __LOCATION__:lat,lng when mentioning campus buildings."
+#             messages = [{"role": "system", "content": sys_prompt}]
+#             for h in (req.history or [])[-6:]:
+#                 messages.append({"role": "user" if h.get("isUser") else "assistant", "content": h.get("text", "")})
+#             messages.append({"role": "user", "content": req.message})
+
+#             resp = groq.chat.completions.create(
+#                 model="llama-3.3-70b-versatile",
+#                 messages=messages,
+#                 temperature=0.7,
+#                 max_tokens=1000
+#             )
+#             answer = resp.choices[0].message.content
+#             return {"answer": answer, "source": "groq", "model": "llama-3.3-70b-versatile"}
+#         except Exception as e:
+#             if "401" in str(e) or "invalid_api_key" in str(e):
+#                 global is_groq_key_valid
+#                 is_groq_key_valid = False
+#             logging.info(f"Groq unavailable ({e}), using verified campus knowledge engine")
+
+#     # Fallback
+#     answer = generate_campus_fallback(req.message, req.lang or "en")
+#     return {"answer": answer, "source": "remote", "model": "cbmu-knowledge-base"}
+
+# @app.post("/api/ai/study-assist")
+# def study_assist(req: StudyAssistRequest):
+#     groq = get_groq_client()
+#     if groq:
+#         try:
+#             resp = groq.chat.completions.create(
+#                 model="llama-3.3-70b-versatile",
+#                 messages=[
+#                     {"role": "system", "content": "You are a university academic professor. Provide detailed exam study guidance and revision notes."},
+#                     {"role": "user", "content": f"Topic: {req.topic}, Mode: {req.mode}, Language: {req.lang}"}
+#                 ],
+#                 max_tokens=1200
+#             )
+#             return {"result": resp.choices[0].message.content, "provider": "groq"}
+#         except Exception as e:
+#             logging.warn(f"Groq study assist failed: {e}")
+
+#     return {
+#         "result": f"### Academic Study Guide: {req.topic}\n\n1. **Core Concept:** Foundational topic in university syllabus.\n2. **Key Formulas & Theorems:** Review governing principles.\n3. **Exam Tips:** Always write formal definition, illustrate with diagrams, and list real-world applications.",
+#         "provider": "academic_engine"
+#     }
+
+# @app.get("/api/departments")
+# def get_departments():
+#     return backend_departments
+
+# @app.post("/api/departments")
+# def save_departments(data: Dict[str, Any]):
+#     global backend_departments
+#     backend_departments = data
+#     write_json_file(DEPARTMENTS_FILE, backend_departments)
+#     return {"success": True}
+
+# @app.get("/api/fees")
+# def get_fees():
+#     return backend_fees
+
+# @app.get("/api/notices")
+# def get_notices():
+#     return backend_notices
+
+# @app.get("/api/settings")
+# def get_settings():
+#     return backend_settings
+
+# # Mount static dist files if compiled
+# dist_path = Path("dist")
+# if dist_path.exists():
+#     app.mount("/", StaticFiles(directory="dist", html=True), name="static")
+
+# if __name__ == "__main__":
+#     import uvicorn
+#     port = int(os.getenv("PORT", 3000))
+#     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
