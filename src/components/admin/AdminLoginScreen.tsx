@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Lock, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { storage } from '../../services/storage';
 import { getApiUrl } from '../../services/apiConfig';
 
@@ -71,13 +71,13 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onSuccess, o
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-neutral-950 text-white select-none">
+    <div className="w-full h-full flex flex-col bg-transparent text-neutral-900 dark:text-white select-none transition-colors">
       {/* Top Header */}
-      <div className="h-14 px-4 border-b border-neutral-800 flex items-center justify-between">
+      <div className="h-14 px-4 bg-white/70 dark:bg-[#1A1A1A]/70 backdrop-blur-md border-b border-neutral-200 dark:border-[#2A2A2A] flex items-center justify-between transition-colors">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-900 transition-colors cursor-pointer text-sm font-medium"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-[#2A2A2A] transition-colors cursor-pointer text-sm font-medium"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Chat</span>
@@ -86,40 +86,27 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onSuccess, o
 
       {/* Main Login Card */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
-          {/* Header Icon & Title */}
-          <div className="text-center space-y-2">
-            <div className="w-12 h-12 mx-auto rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <Lock className="w-6 h-6" />
-            </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Admin Login</h1>
-            <p className="text-xs text-neutral-400">Enter your admin password to continue</p>
-          </div>
-
+        <div className="w-full max-w-sm bg-white dark:bg-[#1A1A1A] border border-neutral-200 dark:border-[#2A2A2A] rounded-2xl p-6 sm:p-8 shadow-xl dark:shadow-2xl space-y-6 transition-colors">
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Error Message */}
             {error && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-xs text-red-300 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-xs text-red-600 dark:text-red-400 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500 dark:text-red-400" />
                 <span>{error}</span>
               </div>
             )}
 
             {/* Success Message */}
             {success && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <span>Login successful! Opening dashboard...</span>
               </div>
             )}
 
             {/* Password Field with Show/Hide toggle */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-neutral-300">
-                Admin Password
-              </label>
-              <div className="relative">
+            <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -130,13 +117,13 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onSuccess, o
                   autoFocus
                   disabled={loading || success}
                   placeholder="Enter admin password"
-                  className="w-full px-3.5 py-2.5 pr-10 bg-neutral-950 border border-neutral-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden rounded-xl text-sm text-white placeholder-neutral-500 transition-colors disabled:opacity-60"
+                  className="w-full px-3.5 py-2.5 pr-10 bg-neutral-50 dark:bg-black/50 border border-neutral-300 dark:border-[#2A2A2A] focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden rounded-xl text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 transition-colors disabled:opacity-60"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   tabIndex={-1}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-white transition-colors cursor-pointer"
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
@@ -146,13 +133,12 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onSuccess, o
                   )}
                 </button>
               </div>
-            </div>
 
             {/* Login Button */}
             <button
               type="submit"
               disabled={loading || success}
-              className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-950/30"
+              className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-600/20"
             >
               {loading ? (
                 <>

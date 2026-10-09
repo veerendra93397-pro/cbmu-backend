@@ -1,10 +1,12 @@
 const BACKEND_URL_KEY = 'cbmu_backend_url';
 export const CBMU_BACKEND_RENDER_URL = 'https://cbmu-backend.onrender.com';
+export const CBMU_BACKEND_VERCEL_URL = 'https://cbmu-backend-be63p5720-veerendra8.vercel.app';
 
 /**
  * Returns the currently active Backend API base URL.
- * Defaults to the live deployed Render backend: https://cbmu-backend.onrender.com
- * Also allows user override via Settings or environment variables.
+ * Defaults to '' (integrated same-origin Express server on port 3000),
+ * which provides instant, zero-latency responses for AI chat, study tutor, and campus data.
+ * Users can also configure a custom Vercel or Render backend in Settings.
  */
 export function getApiBaseUrl(): string {
   try {
@@ -28,7 +30,7 @@ export function getApiBaseUrl(): string {
     return envUrl.replace(/\/+$/, '');
   }
 
-  // Primary Default: Integrated same-origin Express server (instant & reliable, full admin & campus data)
+  // Primary Default: Integrated same-origin Express server (fast & 100% reliable)
   return '';
 }
 
@@ -48,9 +50,6 @@ export function resetToIntegratedBackend(): void {
 
 /**
  * Constructs a fully qualified API URL.
- * If backend base URL is set (e.g. Render backend https://cbmu-backend.onrender.com),
- * it returns https://cbmu-backend.onrender.com/api/...
- * Otherwise returns /api/...
  */
 export function getApiUrl(endpoint: string): string {
   const base = getApiBaseUrl();
@@ -62,7 +61,34 @@ export function getApiUrl(endpoint: string): string {
 }
 
 /**
- * Saves a custom Render backend or proxy URL in localStorage
+ * Resilient fetch helper:
+ * Tries the configured backend URL first, and automatically falls back
+ * to the integrated same-origin backend if the remote backend fails (CORS, 302 SSO, or network error).
+ */
+export async function safeFetchApi(endpoint: string, init?: RequestInit): Promise<Response> {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const base = getApiBaseUrl();
+
+  if (base) {
+    try {
+      const url = `${base}${cleanEndpoint}`;
+      const res = await fetch(url, init);
+      if (res.ok) {
+        return res;
+      }
+      // If remote returned an error or redirect, fallback to integrated backend
+      console.warn(`Remote API at ${url} returned status ${res.status}, falling back to integrated backend.`);
+    } catch (err) {
+      console.warn(`Remote API fetch failed (${err}), falling back to integrated backend.`);
+    }
+  }
+
+  // Guaranteed fallback to integrated same-origin backend
+  return await fetch(cleanEndpoint, init);
+}
+
+/**
+ * Saves a custom backend URL in localStorage
  */
 export function setBackendUrl(url: string): void {
   try {

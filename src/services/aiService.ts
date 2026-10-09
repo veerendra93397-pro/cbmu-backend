@@ -1,5 +1,5 @@
 import { Language } from '../types';
-import { getApiUrl } from './apiConfig';
+import { safeFetchApi } from './apiConfig';
 
 export interface StudyAssistResponse {
   result?: string;
@@ -26,7 +26,7 @@ export const aiService = {
    */
   async getProviderStatus(): Promise<ProviderStatus> {
     try {
-      const res = await fetch(getApiUrl('/api/ai/provider-status'));
+      const res = await safeFetchApi('/api/ai/provider-status');
       if (res.ok) {
         return await res.json();
       }
@@ -40,11 +40,11 @@ export const aiService = {
   },
 
   /**
-   * Test Groq connection
+   * Test Groq connection with an optional key
    */
-  async testGroqConnection(key?: string): Promise<{ success: boolean; message: string; reply?: string }> {
+  async testGroqConnection(key?: string): Promise<{ success: boolean; message: string; reply?: string; model?: string }> {
     try {
-      const res = await fetch(getApiUrl('/api/ai/test-groq'), {
+      const res = await safeFetchApi('/api/ai/test-groq', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key }),
@@ -56,11 +56,27 @@ export const aiService = {
   },
 
   /**
+   * Save a newly changed Groq API key to the backend
+   */
+  async saveGroqKey(key: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await safeFetchApi('/api/ai/groq-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key }),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Failed to update Groq key on server' };
+    }
+  },
+
+  /**
    * Send a query to the server-side AI chat endpoint (Groq / Gemini)
    */
   async chatWithGemini(message: string, lang: Language, history: { text: string; isUser: boolean }[] = []): Promise<string | null> {
     try {
-      const res = await fetch(getApiUrl('/api/ai/chat'), {
+      const res = await safeFetchApi('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, lang, history }),
@@ -82,7 +98,7 @@ export const aiService = {
    */
   async getStudyHelp(topic: string, mode: 'explain' | 'quiz' | 'exam_prep' | 'summary', lang: Language): Promise<string> {
     try {
-      const res = await fetch(getApiUrl('/api/ai/study-assist'), {
+      const res = await safeFetchApi('/api/ai/study-assist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic, mode, lang }),
@@ -103,7 +119,7 @@ export const aiService = {
    */
   async summarizeNotice(title: string, body: string, lang: Language): Promise<string> {
     try {
-      const res = await fetch(getApiUrl('/api/ai/summarize-notice'), {
+      const res = await safeFetchApi('/api/ai/summarize-notice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, body, lang }),

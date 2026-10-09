@@ -285,7 +285,7 @@ export async function processChatMessage(
     if (isKn) {
       return {
         answer: `### 📚 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ (Central Library)
-\n📍 **ಸ್ಥಳ:** ಮುಖ್ಯ ಆಡಳಿತ ಸೌಧದ ಎದುರು, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್, ಕೊಣಾಜೆ
+\n📍 **ಸ್ಥಳ:** ವಿಜ್ಞಾನ ಬ್ಲಾಕ್ (Science Block) ಎದುರು, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್, ಕೊಣಾಜೆ
 ⏰ **ಸಮಯ:** ಸೋಮವಾರ - ಶನಿವಾರ: 8:00 AM – 8:00 PM (ಓದುವ ಕೊಠಡಿಗಳು)
 👤 **ಗ್ರಂಥಪಾಲಕರು:** Dr. M. Purushotham Gowda (ಮೊಬೈಲ್: 9449450671)
 📞 **ಸಂಪರ್ಕ:** 0824-2287234
@@ -295,7 +295,7 @@ export async function processChatMessage(
     }
     return {
       answer: `### 📚 Central University Library
-\n📍 **Location:** Opposite Administration Block, Mangalagangotri Campus, Konaje
+\n📍 **Location:** Opposite Science Block, Mangalagangotri Campus, Konaje
 ⏰ **Timings:** Monday to Friday: 8:00 AM – 8:00 PM | Saturday: 9:00 AM – 5:30 PM
 👤 **In-Charge Librarian:** Dr. M. Purushotham Gowda (Mobile: 9449450671)
 📞 **Librarian Desk:** 0824-2287234

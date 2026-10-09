@@ -213,7 +213,7 @@ def generate_campus_fallback(query: str, lang: str = "en") -> str:
     if "library" in lower:
         return (
             "### Central University Library\n\n"
-            "📍 Near the Administration Block, Mangalagangotri.\n\n"
+            "📍 Opposite Science Block, Mangalagangotri.\n\n"
             "__LOCATION__:12.8153,74.9248"
         )
 

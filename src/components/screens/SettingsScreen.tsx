@@ -49,6 +49,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [passwordSavedNotice, setPasswordSavedNotice] = useState(false);
 
+  // Groq API Key settings
+  const [groqKeyInput, setGroqKeyInput] = useState('');
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [isSavingGroqKey, setIsSavingGroqKey] = useState(false);
+  const [groqKeySaveResult, setGroqKeySaveResult] = useState<{ success: boolean; message: string } | null>(null);
+
   useEffect(() => {
     const handleUpdate = () => {
       setBgTheme(storage.getSettings().backgroundTheme);
@@ -130,6 +136,27 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2000);
     handleTestConnection();
+  };
+
+  const handleSaveGroqKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = groqKeyInput.trim();
+    if (!clean) return;
+    setIsSavingGroqKey(true);
+    setGroqKeySaveResult(null);
+    try {
+      const res = await aiService.saveGroqKey(clean);
+      setGroqKeySaveResult(res);
+      if (res.success) {
+        setGroqKeyInput('');
+        await loadProviderStatus();
+        await handleTestConnection();
+      }
+    } catch (err: any) {
+      setGroqKeySaveResult({ success: false, message: err?.message || 'Failed to save Groq key' });
+    } finally {
+      setIsSavingGroqKey(false);
+    }
   };
 
   const handleSelectBg = (themeKey: BackgroundTheme) => {
@@ -355,6 +382,58 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {savedSuccess && (
                   <p className="text-[11px] text-emerald-400 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> {!backendUrlInput ? 'Switched to Integrated Server!' : 'Backend URL updated successfully!'}
+                  </p>
+                )}
+              </form>
+            </div>
+
+            {/* Groq API Key Configuration */}
+            <div className="pt-2 border-t border-[#2A2A2A]">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-neutral-300">
+                  Groq API Key <span className="text-neutral-500 font-normal">(for LLaMA 3.3 70B AI)</span>
+                </label>
+                <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-mono transition-colors"
+                >
+                  <KeyRound className="w-3 h-3" /> Get Free Groq Key
+                </a>
+              </div>
+              <form onSubmit={handleSaveGroqKey} className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showGroqKey ? 'text' : 'password'}
+                      value={groqKeyInput}
+                      onChange={(e) => setGroqKeyInput(e.target.value)}
+                      placeholder="Paste new key (e.g. gsk_...)"
+                      className="w-full bg-black/50 border border-[#2A2A2A] focus:border-emerald-500 focus:outline-hidden rounded-lg px-3 py-2 pr-9 text-xs text-white placeholder-neutral-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGroqKey(!showGroqKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+                      title={showGroqKey ? 'Hide key' : 'Show key'}
+                    >
+                      {showGroqKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSavingGroqKey || !groqKeyInput.trim()}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    {isSavingGroqKey ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    Save & Test
+                  </button>
+                </div>
+                {groqKeySaveResult && (
+                  <p className={`text-[11px] flex items-center gap-1 ${groqKeySaveResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {groqKeySaveResult.success ? <CheckCircle2 className="w-3 h-3 shrink-0" /> : <AlertCircle className="w-3 h-3 shrink-0" />}
+                    {groqKeySaveResult.message}
                   </p>
                 )}
               </form>

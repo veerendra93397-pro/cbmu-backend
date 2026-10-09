@@ -512,6 +512,77 @@ app.get('/api/ai/provider-status', (req, res) => {
   });
 });
 
+// Update / Save Groq API Key Endpoint
+app.post('/api/ai/groq-key', async (req, res) => {
+  try {
+    const rawKey = req.body?.key;
+    if (typeof rawKey !== 'string') {
+      res.status(400).json({ success: false, message: 'API key is required' });
+      return;
+    }
+    const cleanKey = rawKey.trim().replace(/^["']|["']$/g, '');
+    if (!cleanKey) {
+      process.env.GROQ_API_KEY = '';
+      cachedGroqKey = '';
+      isGroqKeyValid = null;
+      try {
+        const envPath = path.resolve('.env');
+        if (fs.existsSync(envPath)) {
+          let envContent = fs.readFileSync(envPath, 'utf-8');
+          envContent = envContent.replace(/^GROQ_API_KEY=.*$/m, 'GROQ_API_KEY=');
+          fs.writeFileSync(envPath, envContent, 'utf-8');
+        }
+      } catch {}
+      res.json({ success: true, message: 'Groq API key cleared.' });
+      return;
+    }
+
+    // Test the new key with Groq
+    const testClient = new Groq({ apiKey: cleanKey });
+    await testClient.chat.completions.create({
+      messages: [{ role: 'user', content: 'Say "connected" in 1 word.' }],
+      model: 'llama-3.1-8b-instant',
+      max_tokens: 10,
+    });
+
+    // Update in-memory and write to .env
+    process.env.GROQ_API_KEY = cleanKey;
+    cachedGroqKey = cleanKey;
+    isGroqKeyValid = true;
+
+    try {
+      const envPath = path.resolve('.env');
+      let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
+      if (/^GROQ_API_KEY=/m.test(envContent)) {
+        envContent = envContent.replace(/^GROQ_API_KEY=.*$/m, `GROQ_API_KEY="${cleanKey}"`);
+      } else {
+        envContent += `\nGROQ_API_KEY="${cleanKey}"\n`;
+      }
+      fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf-8');
+    } catch (fsErr) {
+      console.warn('Could not write to .env file:', fsErr);
+    }
+
+    res.json({
+      success: true,
+      message: 'Groq API key verified and updated successfully! LLaMA AI active.',
+      model: 'llama-3.3-70b-versatile',
+    });
+  } catch (error: any) {
+    if (error?.status === 401 || error?.message?.includes('invalid_api_key')) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid Groq API key (HTTP 401). Please check that your key from https://console.groq.com/keys is active and copied correctly.',
+      });
+      return;
+    }
+    res.status(500).json({
+      success: false,
+      message: error?.message || 'Failed to verify Groq API key with server',
+    });
+  }
+});
+
 // Test Groq Connection Endpoint
 app.post('/api/ai/test-groq', async (req, res) => {
   try {
@@ -812,7 +883,7 @@ __LOCATION__:12.81685,74.92306`;
     if (isKn) {
       return `### 📚 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ (Central Library)
 
-📍 **ಸ್ಥಳ:** ಮುಖ್ಯ ಆಡಳಿತ ಸೌಧದ ಎದುರು, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್
+📍 **ಸ್ಥಳ:** ವಿಜ್ಞಾನ ಬ್ಲಾಕ್ (Science Block) ಎದುರು, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್
 ⏰ **ಸಮಯ:** ಸೋಮವಾರ - ಶನಿವಾರ: 8:00 AM – 8:00 PM (ಓದುವ ಕೊಠಡಿಗಳು)
 👤 **ಗ್ರಂಥಪಾಲಕರು:** Dr. M. Purushotham Gowda (ಮೊಬೈಲ್: 9449450671)
 📞 **ಸಂಪರ್ಕ:** 0824-2287234
@@ -822,7 +893,7 @@ __LOCATION__:12.81661,74.92405`;
 
     return `### 📚 Central University Library
 
-📍 **Location:** Opposite Administration Block, Mangalagangotri Campus, Konaje
+📍 **Location:** Opposite Science Block, Mangalagangotri Campus, Konaje
 ⏰ **Timings:** Monday to Saturday: 8:00 AM – 8:00 PM (Reading halls open weekdays)
 👤 **In-Charge Librarian:** Dr. M. Purushotham Gowda (Mobile: 9449450671)
 📞 **Librarian Desk:** 0824-2287234
