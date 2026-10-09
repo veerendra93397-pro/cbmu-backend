@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { Language, CampusEntity, CourseFee } from '../types';
-import { getApiUrl } from './apiConfig';
-
+// import { getApiUrl } from './apiConfig';
+import { aiService } from './aiService';
 export interface ChatResponse {
   answer: string;
   source: 'remote' | 'local' | 'gemini' | 'groq';
@@ -348,29 +348,50 @@ export async function processChatMessage(
     }
   }
 
+
   // 2. Try Server-Side AI (Groq / Gemini / Unified coordinator)
   try {
-    const aiRes = await fetch(getApiUrl("/api/ai/chat"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: trimmed, lang, history }),
-    });
+    const aiAnswer = await aiService.chatWithGemini(
+      trimmed,
+      lang,
+      history
+    );
 
-    if (aiRes.ok) {
-      const data = await aiRes.json();
-      if (data && data.answer && typeof data.answer === 'string') {
-        // If the answer is an actual intelligent answer (not a generic canned non-response)
-        if (!isGenericFallback(data.answer)) {
-          return {
-            answer: data.answer,
-            source: (data.source === 'groq' || data.source === 'gemini') ? data.source : 'remote'
-          };
-        }
-      }
+    if (aiAnswer && !isGenericFallback(aiAnswer)) {
+      return {
+        answer: aiAnswer,
+        source: 'remote'
+      };
     }
   } catch (err) {
-    console.warn('Backend chat route unreachable, checking local campus engine:', err);
+    console.warn(
+      'Backend chat route unreachable, checking local campus engine:',
+      err
+    );
   }
+  // // 2. Try Server-Side AI (Groq / Gemini / Unified coordinator)
+  // try {
+  //   const aiRes = await fetch(getApiUrl("/api/ai/chat"), {
+  //     method: "POST",
+  //     headers: { "Content-Type": "application/json" },
+  //     body: JSON.stringify({ message: trimmed, lang, history }),
+  //   });
+
+  //   if (aiRes.ok) {
+  //     const data = await aiRes.json();
+  //     if (data && data.answer && typeof data.answer === 'string') {
+  //       // If the answer is an actual intelligent answer (not a generic canned non-response)
+  //       if (!isGenericFallback(data.answer)) {
+  //         return {
+  //           answer: data.answer,
+  //           source: (data.source === 'groq' || data.source === 'gemini') ? data.source : 'remote'
+  //         };
+  //       }
+  //     }
+  //   }
+  // } catch (err) {
+  //   console.warn('Backend chat route unreachable, checking local campus engine:', err);
+  // }
 
   // 3. Fallback Entity Matching across CAMPUS_DATA
   let bestMatch: CampusEntity | null = null;
