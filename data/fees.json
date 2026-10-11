@@ -1,0 +1,50 @@
+{
+  "mca": {
+    "key": "mca",
+    "label": "MCA (Master of Computer Applications)",
+    "year": "2025-26",
+    "pdf": "https://www.mangaloreuniversity.ac.in/upload/2025/ACC/Fees/PG-Programmes-University-Campus-Constituent-Colleges.pdf",
+    "pdf_label": "PG Fee Structure 2025-26 — University Campus & Constituent Colleges",
+    "note": "MCA runs at the University Campus Science Block."
+  },
+  "mba": {
+    "key": "mba",
+    "label": "MBA (Business Administration)",
+    "year": "2025-26",
+    "pdf": "https://www.mangaloreuniversity.ac.in/upload/2025/ACC/Fees/PG-Programmes-University-Campus-Constituent-Colleges.pdf",
+    "pdf_label": "PG Fee Structure 2025-26 — University Campus & Constituent Colleges",
+    "note": "MBA runs at the University Campus MBA Block."
+  },
+  "pg_affiliated": {
+    "key": "pg_affiliated",
+    "label": "PG Programmes — Affiliated / Autonomous Colleges",
+    "year": "2025-26",
+    "pdf": "https://www.mangaloreuniversity.ac.in/upload/2025/ACC/Fees/PG-Programmes-Affiliated-Autonomous-Colleges.pdf",
+    "pdf_label": "PG Fee Structure 2025-26 — Affiliated & Autonomous Colleges",
+    "note": null
+  },
+  "pg_government": {
+    "key": "pg_government",
+    "label": "PG Programmes — Government Colleges",
+    "year": "2025-26",
+    "pdf": "https://www.mangaloreuniversity.ac.in/upload/2025/ACC/Fees/PG-Programmes-Government-Colleges.pdf",
+    "pdf_label": "PG Fee Structure 2025-26 — Government Colleges",
+    "note": null
+  },
+  "ug": {
+    "key": "ug",
+    "label": "UG Programmes",
+    "year": "2026-27",
+    "pdf": "https://www.mangaloreuniversity.ac.in/upload/2026/acc/fees/Revised%20UG%20Fee%20Structure-%2026-27.pdf",
+    "pdf_label": "Revised UG Fee Structure 2026-27",
+    "note": null
+  },
+  "phd": {
+    "key": "phd",
+    "label": "Ph.D",
+    "year": "2021-22 (latest verified)",
+    "pdf": "https://www.mangaloreuniversity.ac.in/upload/academic/Ph.D%20fee%20structure-2021-22.pdf",
+    "pdf_label": "Ph.D Fee Structure 2021-22",
+    "note": "Confirm latest circular with the Registrar's office."
+  }
+}
