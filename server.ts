@@ -674,6 +674,58 @@ ${groqActive ? '⚡ **Connected to Groq AI Server (LLaMA 3.3 70B)**' : '💡 **A
 • **Hostels & Living:** *"Men's hostel info & mess"*, *"Women's hostel in-timings"*
 • **Administration:** *"Who is the Vice Chancellor?"*, *"Registrar contact number"*
 • **Study Help:** Head to **AI Study Tutor** in the menu for instant syllabus exam notes!`;
+    
+function findDepartmentAnswer(
+  query: string,
+  lang: string
+): string | null {
+  const q = query.toLowerCase().trim();
+
+  // Recognize chairperson/head questions, including common typos.
+  const asksForHead =
+    /\b(chair\s*person|chairman|chairwoman|chirperson|head|hod|who\s+leads|in[- ]charge)\b/i.test(q) ||
+    q.includes("ಅಧ್ಯಕ್ಷರು") ||
+    q.includes("ವಿಭಾಗದ ಮುಖ್ಯಸ್ಥ") ||
+    q.includes("ಮುಖ್ಯಸ್ಥರು");
+
+  if (!asksForHead) return null;
+
+  const departments = Object.values(backendDepartments) as any[];
+
+  const dept = departments.find((d) => {
+    const terms = [
+      d.key,
+      d.name,
+      ...(Array.isArray(d.aliases) ? d.aliases : []),
+    ]
+      .filter(Boolean)
+      .map((value: unknown) => String(value).toLowerCase().trim());
+
+    return terms.some((term: string) => {
+      // Match complete words, so "MCA" matches as an acronym.
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(
+        `(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`,
+        "i"
+      ).test(q);
+    });
+  });
+
+  if (!dept) return null;
+
+  const person = dept.chairperson || dept.person || dept.hod;
+
+  if (!person) {
+    return lang === "kn"
+      ? `${dept.name} ವಿಭಾಗದ ಅಧ್ಯಕ್ಷರು/ಮುಖ್ಯಸ್ಥರ ಹೆಸರು ಪ್ರಸ್ತುತ directoryಯಲ್ಲಿ ದಾಖಲಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಅಧಿಕೃತ ಮಾಹಿತಿಯಲ್ಲಿ ಪರಿಶೀಲಿಸಿ.`
+      : `The chairperson/head of ${dept.name} is not listed in the current directory. Please verify with the university.`;
+  }
+
+  return lang === "kn"
+    ? `### ${dept.name}\n\n👤 **ವಿಭಾಗದ ಅಧ್ಯಕ್ಷರು/ಮುಖ್ಯಸ್ಥರು:** ${person}${dept.contact ? `\n\n📞 **ಸಂಪರ್ಕ:** ${dept.contact}` : ""}`
+    : `### ${dept.name}\n\n👤 **Chairperson/Head:** ${person}${dept.contact ? `\n\n📞 **Contact:** ${dept.contact}` : ""}`;
+}
+
   }
 
   // 2. Vice Chancellor & Administration
