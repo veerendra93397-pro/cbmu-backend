@@ -1027,6 +1027,17 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 });
 
+const directoryAnswer = findDepartmentAnswer(message, lang);
+
+if (directoryAnswer) {
+  return res.json({
+    answer: directoryAnswer,
+    source: "campus_directory",
+    model: "verified-directory",
+  });
+}
+
+
 // AI Study Assistant & Explainer Endpoint
 app.post('/api/ai/study-assist', async (req, res) => {
   try {
