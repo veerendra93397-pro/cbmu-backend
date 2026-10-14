@@ -3,7 +3,13 @@ import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+
 dotenv.config({ override: true });
+
+const GROQ_MODEL = (
+  process.env.GROQ_MODEL || "openai/gpt-oss-120b"
+).trim();
+
 import Groq from 'groq-sdk';
 import path from 'path';
 import fs from 'fs';
@@ -100,7 +106,7 @@ function getGroqApiKey(): string {
         if (key) return key;
       }
     }
-  } catch {}
+  } catch { }
 
   const envKey = (process.env.GROQ_API_KEY || process.env.GROQ_KEY || '').trim().replace(/^["']|["']$/g, '');
   return envKey;
@@ -171,59 +177,55 @@ If you know relevant coordinates, append "__LOCATION__:lat,lng" on a new line (e
 `;
 }
 
-// Groq completion helper with automatic model fallback
+
 async function generateGroqCompletion(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  model: string = 'llama-3.3-70b-versatile'
+  messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }>,
+  model: string = GROQ_MODEL
 ): Promise<string> {
   const groq = getGroqClient();
-  if (!groq) throw new Error('Groq client not initialized');
+
+  if (!groq) {
+    throw new Error("Groq client not initialized");
+  }
 
   try {
     const completion = await groq.chat.completions.create({
       messages,
       model,
       temperature: 0.7,
-      max_tokens: 1500,
+      max_completion_tokens: 1500,
     });
+
     isGroqKeyValid = true;
-    return completion.choices[0]?.message?.content || '';
+
+    return completion.choices[0]?.message?.content || "";
   } catch (err: any) {
-    const isAuthError = 
-      err?.status === 401 || 
-      err?.message?.includes('invalid_api_key') || 
-      err?.message?.includes('Invalid API Key') ||
-      err?.code === 'invalid_api_key';
+    const isAuthError =
+      err?.status === 401 ||
+      err?.message?.includes("invalid_api_key") ||
+      err?.message?.includes("Invalid API Key") ||
+      err?.code === "invalid_api_key";
 
     if (isAuthError) {
       isGroqKeyValid = false;
-      // Do NOT retry with 8b when key is 401 invalid: it will fail with the exact same error
-      throw new Error('GROQ_AUTH_FAILED');
+      throw new Error("GROQ_AUTH_FAILED");
     }
 
-    // Only retry with 8b model on rate limit (429) or transient 500/503 errors
-    if (model !== 'llama-3.1-8b-instant') {
-      try {
-        const fallback = await groq.chat.completions.create({
-          messages,
-          model: 'llama-3.1-8b-instant',
-          temperature: 0.7,
-          max_tokens: 1500,
-        });
-        isGroqKeyValid = true;
-        return fallback.choices[0]?.message?.content || '';
-      } catch (fallbackErr: any) {
-        if (fallbackErr?.status === 401 || fallbackErr?.message?.includes('invalid_api_key')) {
-          isGroqKeyValid = false;
-          throw new Error('GROQ_AUTH_FAILED');
-        }
-        throw fallbackErr;
-      }
+    // Do not retry with obsolete model names.
+    // Retry only transient errors, using the configured model.
+    if ([429, 500, 503].includes(err?.status)) {
+      console.error(
+        `Temporary Groq error (${err.status}). Model: ${model}`
+      );
     }
+
+    // A 404 model_not_found error should be fixed through configuration.
     throw err;
   }
 }
-
 // Built-in comprehensive academic synthesizer (prevents 401 unauthenticated crashes)
 function generateAcademicStudyGuidance(topic: string, mode: string, lang: string): string {
   const isKn = lang === 'kn';
@@ -418,79 +420,123 @@ In industrial and academic applications, understanding ${cleanTopic} allows anal
 }
 
 // Unified AI completion coordinator: Groq -> Gemini -> Academic Synthesizer
+
 async function coordinateAiResponse(
   systemPrompt: string,
   userMessage: string,
   history: Array<{ text: string; isUser: boolean }> = [],
   fallback?: () => string
 ): Promise<{ text: string; provider: string; model: string }> {
-  // 1. Try Groq first if key configured and not marked as invalid
+
+  // 1. Try Groq first
   if (isGroqConfigured()) {
     try {
-      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-        { role: 'system', content: systemPrompt }
-      ];
+      const messages: Array<{
+        role: "system" | "user" | "assistant";
+        content: string;
+      }> = [
+          { role: "system", content: systemPrompt },
+        ];
+
       for (const h of history.slice(-6)) {
         if (h.text) {
           messages.push({
-            role: h.isUser ? 'user' : 'assistant',
-            content: h.text
+            role: h.isUser ? "user" : "assistant",
+            content: h.text,
           });
         }
       }
-      messages.push({ role: 'user', content: userMessage });
 
-      const text = await generateGroqCompletion(messages, 'llama-3.3-70b-versatile');
+      messages.push({
+        role: "user",
+        content: userMessage,
+      });
+
+      const text = await generateGroqCompletion(
+        messages,
+        GROQ_MODEL
+      );
+
       if (text && text.trim()) {
-        return { text, provider: 'groq', model: 'llama-3.3-70b-versatile' };
+        return {
+          text,
+          provider: "groq",
+          model: GROQ_MODEL,
+        };
       }
     } catch (groqErr: any) {
-      if (groqErr?.message === 'GROQ_AUTH_FAILED') {
-        // Smoothly fall back to campus / academic knowledge engine
+      if (groqErr?.message === "GROQ_AUTH_FAILED") {
+        console.warn("Groq authentication failed; trying Gemini.");
       } else {
-        console.warn('Groq generation notice:', groqErr?.message);
+        console.warn(
+          "Groq generation notice:",
+          groqErr?.message
+        );
       }
     }
   }
 
-  // 2. Try Gemini if key is valid (not placeholder AQ token)
+  // 2. Try Gemini if configured
   const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey && !geminiKey.startsWith('AQ.')) {
+
+  if (geminiKey && !geminiKey.startsWith("AQ.")) {
     try {
-      const contents: any[] = [];
-      contents.push({
-        role: 'user',
-        parts: [{ text: `${systemPrompt}\n\nTask / Conversation:\n${userMessage}` }]
-      });
+      const contents = [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `${systemPrompt}\n\nConversation history:\n${history
+                .slice(-6)
+                .map(
+                  (h) =>
+                    `${h.isUser ? "User" : "Assistant"}: ${h.text}`
+                )
+                .join("\n")
+                }\n\nUser question: ${userMessage}`,
+            },
+          ],
+        },
+      ];
+
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: "gemini-2.5-flash",
         contents,
       });
-      const text = response.text || '';
-      if (text && text.trim()) {
-        return { text, provider: 'gemini', model: 'gemini-2.5-flash' };
+
+      const text = response.text || "";
+
+      if (text.trim()) {
+        return {
+          text,
+          provider: "gemini",
+          model: "gemini-2.5-flash",
+        };
       }
     } catch (geminiErr: any) {
-      console.warn('Gemini generation notice:', geminiErr?.message);
+      console.warn(
+        "Gemini generation notice:",
+        geminiErr?.message
+      );
     }
   }
 
-  // 3. Guaranteed academic synthesis fallback
+  // 3. Academic knowledge fallback
   if (fallback) {
     return {
       text: fallback(),
-      provider: 'academic_engine',
-      model: 'cbmu-academic-synthesizer'
+      provider: "academic_engine",
+      model: "cbmu-academic-synthesizer",
     };
   }
 
   return {
-    text: `I am the Mangalore University Campus Assistant. Currently, our high-speed Groq AI connection is ready for activation.\n\nTo connect your Groq API key:\n1. Open your \`.env\` file on the server.\n2. Add: \`GROQ_API_KEY=gsk_your_key_here\`\n3. Restart server or refresh!\n\nIn the meantime, feel free to ask about campus departments, fees, notices, or location coordinates.`,
-    provider: 'campus_engine',
-    model: 'cbmu-knowledge-base'
+    text:
+      "I am the Mangalore University Campus Assistant. AI services are currently unavailable. Please try again later or ask about verified campus information.",
+    provider: "campus_engine",
+    model: "cbmu-knowledge-base",
   };
 }
-
 // AI Provider Status Endpoint
 app.get('/api/ai/provider-status', (req, res) => {
   const rawKey = getGroqApiKey();
@@ -504,128 +550,141 @@ app.get('/api/ai/provider-status', (req, res) => {
     groqKeyValid: isGroqKeyValid,
     groqKeyStatus: !rawKey ? 'unconfigured' : isGroqKeyValid === false ? 'invalid' : isGroqKeyValid === true ? 'valid' : 'pending',
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
-    modelName: groqOk 
-      ? 'Groq (LLaMA 3.3 70B Versatile)' 
-      : geminiOk 
-      ? 'Gemini 3.8 Flash' 
-      : 'CBMU Campus Engine',
+    modelName: groqOk
+      ? GROQ_MODEL
+      : geminiOk
+        ? 'gemini-2.5-flash'
+        : 'CBMU Campus Engine',
   });
-});
-
-// Update / Save Groq API Key Endpoint
-app.post('/api/ai/groq-key', async (req, res) => {
-  try {
-    const rawKey = req.body?.key;
-    if (typeof rawKey !== 'string') {
-      res.status(400).json({ success: false, message: 'API key is required' });
-      return;
-    }
-    const cleanKey = rawKey.trim().replace(/^["']|["']$/g, '');
-    if (!cleanKey) {
-      process.env.GROQ_API_KEY = '';
-      cachedGroqKey = '';
-      isGroqKeyValid = null;
-      try {
-        const envPath = path.resolve('.env');
-        if (fs.existsSync(envPath)) {
-          let envContent = fs.readFileSync(envPath, 'utf-8');
-          envContent = envContent.replace(/^GROQ_API_KEY=.*$/m, 'GROQ_API_KEY=');
-          fs.writeFileSync(envPath, envContent, 'utf-8');
-        }
-      } catch {}
-      res.json({ success: true, message: 'Groq API key cleared.' });
-      return;
-    }
-
-    // Test the new key with Groq
-    const testClient = new Groq({ apiKey: cleanKey });
-    await testClient.chat.completions.create({
-      messages: [{ role: 'user', content: 'Say "connected" in 1 word.' }],
-      model: 'llama-3.1-8b-instant',
-      max_tokens: 10,
-    });
-
-    // Update in-memory and write to .env
-    process.env.GROQ_API_KEY = cleanKey;
-    cachedGroqKey = cleanKey;
-    isGroqKeyValid = true;
-
-    try {
-      const envPath = path.resolve('.env');
-      let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
-      if (/^GROQ_API_KEY=/m.test(envContent)) {
-        envContent = envContent.replace(/^GROQ_API_KEY=.*$/m, `GROQ_API_KEY="${cleanKey}"`);
-      } else {
-        envContent += `\nGROQ_API_KEY="${cleanKey}"\n`;
-      }
-      fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf-8');
-    } catch (fsErr) {
-      console.warn('Could not write to .env file:', fsErr);
-    }
-
-    res.json({
-      success: true,
-      message: 'Groq API key verified and updated successfully! LLaMA AI active.',
-      model: 'llama-3.3-70b-versatile',
-    });
-  } catch (error: any) {
-    if (error?.status === 401 || error?.message?.includes('invalid_api_key')) {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid Groq API key (HTTP 401). Please check that your key from https://console.groq.com/keys is active and copied correctly.',
-      });
-      return;
-    }
-    res.status(500).json({
-      success: false,
-      message: error?.message || 'Failed to verify Groq API key with server',
-    });
-  }
 });
 
 // Test Groq Connection Endpoint
 app.post('/api/ai/test-groq', async (req, res) => {
   try {
-    const key = (req.body.key || getGroqApiKey() || '').trim().replace(/^["']|["']$/g, '');
+    const key = (
+      req.body?.key ||
+      getGroqApiKey() ||
+      ''
+    ).trim().replace(/^["']|["']$/g, '');
+
     if (!key) {
-      res.status(400).json({ 
-        success: false, 
-        message: 'No Groq API key configured. Please add GROQ_API_KEY to your .env file or Render Environment Variables.' 
+      res.status(400).json({
+        success: false,
+        message:
+          'No Groq API key configured. Add GROQ_API_KEY to .env or your deployment environment variables.',
       });
       return;
     }
 
+    const model =
+      (process.env.GROQ_MODEL || 'openai/gpt-oss-120b').trim();
+
     const testClient = new Groq({ apiKey: key });
+
     const completion = await testClient.chat.completions.create({
-      messages: [{ role: 'user', content: 'Say "Groq AI server is connected successfully to CBMU Campus Assistant!" in 1 short sentence.' }],
-      model: 'llama-3.1-8b-instant',
-      max_tokens: 50,
+      messages: [
+        {
+          role: 'user',
+          content:
+            'Say "Groq AI server is connected successfully to CBMU Campus Assistant!" in one short sentence.',
+        },
+      ],
+      model,
+      max_completion_tokens: 100,
     });
 
     isGroqKeyValid = true;
-    const reply = completion.choices[0]?.message?.content || 'Connection OK';
+
+    const reply =
+      completion.choices[0]?.message?.content || 'Connection OK';
+
     res.json({
       success: true,
       message: 'Groq server connected successfully!',
       reply,
-      model: 'llama-3.1-8b-instant',
+      model,
     });
   } catch (error: any) {
-    if (error?.status === 401 || error?.message?.includes('invalid_api_key')) {
+    if (
+      error?.status === 401 ||
+      error?.message?.includes('invalid_api_key')
+    ) {
       isGroqKeyValid = false;
+
       res.status(401).json({
         success: false,
         isAuthError: true,
-        message: 'Invalid Groq API Key (HTTP 401). Please check that your key from https://console.groq.com/keys is active and correctly copied.',
+        message:
+          'Invalid Groq API key. Check your key in the Groq Console.',
       });
       return;
     }
-    res.status(500).json({
+
+    console.error('Groq connection test failed:', error?.message);
+
+    res.status(error?.status === 429 ? 429 : 500).json({
       success: false,
-      message: error?.message || 'Failed to connect to Groq server',
+      message:
+        error?.status === 404
+          ? `Groq model "${process.env.GROQ_MODEL || 'openai/gpt-oss-120b'}" was not found or is unavailable to your account.`
+          : error?.status === 429
+            ? 'Groq rate limit reached. Please wait and try again.'
+            : 'Failed to connect to Groq. Check the server logs.',
     });
   }
 });
+// Verified directory lookup for "who is the chairperson / head of X?" questions.
+// Answers come straight from the backend departments data so the AI can never
+// invent a name. Returns null when the question is not about a department head.
+function findDepartmentAnswer(query: string, lang: string): string | null {
+  const q = query.toLowerCase().trim();
+
+  // Recognize chairperson/head questions, including common typos.
+  const asksForHead =
+    /\b(chair\s*person|chairman|chairwoman|chirperson|head|hod|who\s+leads|in[- ]charge)\b/i.test(q) ||
+    q.includes('ಅಧ್ಯಕ್ಷರು') ||
+    q.includes('ವಿಭಾಗದ ಮುಖ್ಯಸ್ಥ') ||
+    q.includes('ಮುಖ್ಯಸ್ಥರು');
+
+  if (!asksForHead) return null;
+
+  const departments = Object.values(backendDepartments) as any[];
+
+  // Pick the entry whose key/name/alias is the LONGEST whole-word match, so
+  // "computer science" wins over a short alias such as "cs" or "science".
+  let best: { dept: any; len: number } | null = null;
+  for (const d of departments) {
+    const terms = [d.key, d.name, ...(Array.isArray(d.aliases) ? d.aliases : [])]
+      .filter(Boolean)
+      .map((value: unknown) => String(value).toLowerCase().trim())
+      .filter((term: string) => term.length > 0);
+
+    for (const term of terms) {
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const matches = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(q);
+      if (matches && (!best || term.length > best.len)) {
+        best = { dept: d, len: term.length };
+      }
+    }
+  }
+
+  if (!best) return null;
+  const dept = best.dept;
+  const person = dept.chairperson || dept.person || dept.hod;
+
+  if (!person) {
+    return lang === 'kn'
+      ? `${dept.name} ವಿಭಾಗದ ಅಧ್ಯಕ್ಷರು/ಮುಖ್ಯಸ್ಥರ ಹೆಸರು ಪ್ರಸ್ತುತ directoryಯಲ್ಲಿ ದಾಖಲಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಅಧಿಕೃತ ಮಾಹಿತಿಯಲ್ಲಿ ಪರಿಶೀಲಿಸಿ.`
+      : `The chairperson/head of ${dept.name} is not listed in the current directory. Please verify with the university.`;
+  }
+
+  const location =
+    dept.lat != null && dept.lng != null ? `\n\n__LOCATION__:${dept.lat},${dept.lng}` : '';
+
+  return lang === 'kn'
+    ? `### ${dept.name}\n\n👤 **ವಿಭಾಗದ ಅಧ್ಯಕ್ಷರು/ಮುಖ್ಯಸ್ಥರು:** ${person}${dept.contact ? `\n\n📞 **ಸಂಪರ್ಕ:** ${dept.contact}` : ''}${location}`
+    : `### ${dept.name}\n\n👤 **Chairperson/Head:** ${person}${dept.contact ? `\n\n📞 **Contact:** ${dept.contact}` : ''}${location}`;
+}
 
 // Rich campus knowledge responder for chat fallback
 function generateCampusFallbackAnswer(query: string, lang: string): string {
@@ -634,16 +693,16 @@ function generateCampusFallbackAnswer(query: string, lang: string): string {
 
   // 1. Chatbot Reply / Status / Greetings Check
   if (
-    lower.includes('chatbot rply') || 
-    lower.includes('chatbot reply') || 
-    lower === 'reply' || 
-    lower.startsWith('reply ') || 
-    lower.includes('can you reply') || 
-    lower.includes('are you online') || 
-    lower.includes('test bot') || 
-    lower === 'hi' || 
-    lower === 'hello' || 
-    lower === 'hey' || 
+    lower.includes('chatbot rply') ||
+    lower.includes('chatbot reply') ||
+    lower === 'reply' ||
+    lower.startsWith('reply ') ||
+    lower.includes('can you reply') ||
+    lower.includes('are you online') ||
+    lower.includes('test bot') ||
+    lower === 'hi' ||
+    lower === 'hello' ||
+    lower === 'hey' ||
     lower.includes('namaste') ||
     lower.includes('namaskara')
   ) {
@@ -664,8 +723,9 @@ function generateCampusFallbackAnswer(query: string, lang: string): string {
     return `### Hello! CBMU Campus Assistant is Online & Ready 🎓✨
 
 I am here to assist you with all Mangalore University campus queries, directions, fees, and academic guidance.
-
-${groqActive ? '⚡ **Connected to Groq AI Server (LLaMA 3.3 70B)**' : '💡 **Active Campus Knowledge Engine (Fast Response)**'}
+${groqActive
+        ? `⚡ **Connected to Groq AI Server (${GROQ_MODEL})**`
+        : '💡 **Active Campus Knowledge Engine (Fast Response)**'}
 
 📌 **Here are some things you can ask me right now:**
 • **Campus Locations:** *"Where is Science Block?"*, *"Show me the Central Library"*, *"MBA Block"*
@@ -674,58 +734,6 @@ ${groqActive ? '⚡ **Connected to Groq AI Server (LLaMA 3.3 70B)**' : '💡 **A
 • **Hostels & Living:** *"Men's hostel info & mess"*, *"Women's hostel in-timings"*
 • **Administration:** *"Who is the Vice Chancellor?"*, *"Registrar contact number"*
 • **Study Help:** Head to **AI Study Tutor** in the menu for instant syllabus exam notes!`;
-    
-function findDepartmentAnswer(
-  query: string,
-  lang: string
-): string | null {
-  const q = query.toLowerCase().trim();
-
-  // Recognize chairperson/head questions, including common typos.
-  const asksForHead =
-    /\b(chair\s*person|chairman|chairwoman|chirperson|head|hod|who\s+leads|in[- ]charge)\b/i.test(q) ||
-    q.includes("ಅಧ್ಯಕ್ಷರು") ||
-    q.includes("ವಿಭಾಗದ ಮುಖ್ಯಸ್ಥ") ||
-    q.includes("ಮುಖ್ಯಸ್ಥರು");
-
-  if (!asksForHead) return null;
-
-  const departments = Object.values(backendDepartments) as any[];
-
-  const dept = departments.find((d) => {
-    const terms = [
-      d.key,
-      d.name,
-      ...(Array.isArray(d.aliases) ? d.aliases : []),
-    ]
-      .filter(Boolean)
-      .map((value: unknown) => String(value).toLowerCase().trim());
-
-    return terms.some((term: string) => {
-      // Match complete words, so "MCA" matches as an acronym.
-      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(
-        `(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`,
-        "i"
-      ).test(q);
-    });
-  });
-
-  if (!dept) return null;
-
-  const person = dept.chairperson || dept.person || dept.hod;
-
-  if (!person) {
-    return lang === "kn"
-      ? `${dept.name} ವಿಭಾಗದ ಅಧ್ಯಕ್ಷರು/ಮುಖ್ಯಸ್ಥರ ಹೆಸರು ಪ್ರಸ್ತುತ directoryಯಲ್ಲಿ ದಾಖಲಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಅಧಿಕೃತ ಮಾಹಿತಿಯಲ್ಲಿ ಪರಿಶೀಲಿಸಿ.`
-      : `The chairperson/head of ${dept.name} is not listed in the current directory. Please verify with the university.`;
-  }
-
-  return lang === "kn"
-    ? `### ${dept.name}\n\n👤 **ವಿಭಾಗದ ಅಧ್ಯಕ್ಷರು/ಮುಖ್ಯಸ್ಥರು:** ${person}${dept.contact ? `\n\n📞 **ಸಂಪರ್ಕ:** ${dept.contact}` : ""}`
-    : `### ${dept.name}\n\n👤 **Chairperson/Head:** ${person}${dept.contact ? `\n\n📞 **Contact:** ${dept.contact}` : ""}`;
-}
-
   }
 
   // 2. Vice Chancellor & Administration
@@ -935,7 +943,7 @@ __LOCATION__:12.81685,74.92306`;
     if (isKn) {
       return `### 📚 ಮಂಗಳೂರು ವಿಶ್ವವಿದ್ಯಾಲಯ ಕೇಂದ್ರ ಗ್ರಂಥಾಲಯ (Central Library)
 
-📍 **ಸ್ಥಳ:** ವಿಜ್ಞಾನ ಬ್ಲಾಕ್ (Science Block) ಎದುರು, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್
+📍 **ಸ್ಥಳ:** ಮುಖ್ಯ ಆಡಳಿತ ಸೌಧದ ಎದುರು, ಮಂಗಳಗಂಗೋತ್ರಿ ಕ್ಯಾಂಪಸ್
 ⏰ **ಸಮಯ:** ಸೋಮವಾರ - ಶನಿವಾರ: 8:00 AM – 8:00 PM (ಓದುವ ಕೊಠಡಿಗಳು)
 👤 **ಗ್ರಂಥಪಾಲಕರು:** Dr. M. Purushotham Gowda (ಮೊಬೈಲ್: 9449450671)
 📞 **ಸಂಪರ್ಕ:** 0824-2287234
@@ -945,7 +953,7 @@ __LOCATION__:12.81661,74.92405`;
 
     return `### 📚 Central University Library
 
-📍 **Location:** Opposite Science Block, Mangalagangotri Campus, Konaje
+📍 **Location:** Opposite Administration Block, Mangalagangotri Campus, Konaje
 ⏰ **Timings:** Monday to Saturday: 8:00 AM – 8:00 PM (Reading halls open weekdays)
 👤 **In-Charge Librarian:** Dr. M. Purushotham Gowda (Mobile: 9449450671)
 📞 **Librarian Desk:** 0824-2287234
@@ -1008,11 +1016,18 @@ app.post('/api/ai/chat', async (req, res) => {
       return;
     }
 
+    // Verified directory answers (department heads) are returned before the AI is called.
+    const directoryAnswer = findDepartmentAnswer(message, lang);
+    if (directoryAnswer) {
+      res.json({ answer: directoryAnswer, source: 'campus_directory', model: 'verified-directory' });
+      return;
+    }
+
     const systemPrompt = `${getDynamicSystemInstruction()}\n\nUser preferred language: ${lang === 'kn' ? 'Kannada (ಕನ್ನಡ)' : 'English'}.`;
-    
+
     const result = await coordinateAiResponse(
-      systemPrompt, 
-      message, 
+      systemPrompt,
+      message,
       Array.isArray(history) ? history : [],
       () => generateCampusFallbackAnswer(message, lang)
     );
@@ -1020,29 +1035,18 @@ app.post('/api/ai/chat', async (req, res) => {
     res.json({ answer: result.text, source: result.provider, model: result.model });
   } catch (error: any) {
     console.error('Chat routing error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: error?.message || 'Failed to generate AI response',
       fallbackAvailable: true
     });
   }
 });
 
-const directoryAnswer = findDepartmentAnswer(message, lang);
-
-if (directoryAnswer) {
-  return res.json({
-    answer: directoryAnswer,
-    source: "campus_directory",
-    model: "verified-directory",
-  });
-}
-
-
 // AI Study Assistant & Explainer Endpoint
 app.post('/api/ai/study-assist', async (req, res) => {
   try {
     const { topic, mode = 'explain', lang = 'en' } = req.body;
-    
+
     if (!topic || typeof topic !== 'string') {
       res.status(400).json({ error: 'Topic or query is required' });
       return;
@@ -1097,7 +1101,7 @@ Language: ${lang === 'kn' ? 'Kannada (ಕನ್ನಡ)' : 'English'}`;
     res.json({ summary: result.text, provider: result.provider });
   } catch (error: any) {
     console.error('Notice summarize error:', error);
-    res.json({ 
+    res.json({
       summary: `• **Notice Focus:** ${req.body?.title || 'Campus Circular'}\n• **Action Required:** Please refer to the official university portal.\n• **Audience:** Mangalore University students and staff.`,
       provider: 'offline'
     });
@@ -1184,14 +1188,14 @@ app.post('/api/admin/reset-password', (req: express.Request, res: express.Respon
       return;
     }
 
-    const isValidKey = 
-      MASTER_RECOVERY_KEYS.includes(cleanKey.toLowerCase()) || 
+    const isValidKey =
+      MASTER_RECOVERY_KEYS.includes(cleanKey.toLowerCase()) ||
       cleanKey === runtimeAdminPassword ||
       cleanKey === process.env.ADMIN_PASSWORD;
 
     if (!isValidKey) {
-      res.status(401).json({ 
-        error: 'Invalid recovery key. Use university founding year PIN (1980) or master key (cbmu-recovery-2024).' 
+      res.status(401).json({
+        error: 'Invalid recovery key. Use university founding year PIN (1980) or master key (cbmu-recovery-2024).'
       });
       return;
     }
@@ -1416,18 +1420,38 @@ app.post('/api/settings', (req, res) => {
 app.get('/api/health', (req, res) => {
   const rawKey = getGroqApiKey();
   const groqOk = isGroqConfigured();
-  const geminiKey = process.env.GEMINI_API_KEY;
-  const geminiOk = Boolean(geminiKey && !geminiKey.startsWith('AQ.'));
 
-  res.json({ 
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const geminiOk = Boolean(
+    geminiKey && !geminiKey.startsWith('AQ.')
+  );
+
+  const groqModel =
+    (process.env.GROQ_MODEL || 'openai/gpt-oss-120b').trim();
+
+  const geminiModel = 'gemini-2.5-flash';
+
+  res.json({
     status: 'ok',
     environment: process.env.NODE_ENV || 'development',
     port,
     platform: process.env.RENDER ? 'render' : 'self-hosted',
-    activeProvider: groqOk ? 'groq' : geminiOk ? 'gemini' : 'academic_engine',
+
+    activeProvider: groqOk
+      ? 'groq'
+      : geminiOk
+        ? 'gemini'
+        : 'academic_engine',
+
     groqConfigured: Boolean(rawKey),
     groqKeyValid: isGroqKeyValid,
-    model: groqOk ? 'llama-3.3-70b-versatile' : geminiOk ? 'gemini-3.8-flash' : 'cbmu-academic-synthesizer',
+
+    model: groqOk
+      ? groqModel
+      : geminiOk
+        ? geminiModel
+        : 'cbmu-academic-synthesizer',
+
     departmentsCount: Object.keys(backendDepartments).length,
     feesCount: Object.keys(backendFees).length,
     noticesCount: backendNotices.length,
