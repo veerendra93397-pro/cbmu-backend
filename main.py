@@ -144,7 +144,7 @@ def health():
         "platform": "render" if os.getenv("RENDER") else "self-hosted",
         "activeProvider": "groq" if groq_ok else "campus_engine",
         "groqConfigured": groq_ok,
-        "model": "llama-3.3-70b-versatile" if groq_ok else "cbmu-knowledge-base"
+        "model": "openai/gpt-oss-120b" if groq_ok else "cbmu-knowledge-base"
     }
 
 @app.get("/api/render-info")
