@@ -195,7 +195,7 @@ def chat(req: ChatRequest):
             messages.append({"role": "user", "content": req.message})
 
             resp = groq.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 messages=messages,
                 temperature=0.7,
                 max_tokens=1000
@@ -218,7 +218,7 @@ def study_assist(req: StudyAssistRequest):
     if groq:
         try:
             resp = groq.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 messages=[
                     {"role": "system", "content": "You are a university academic professor. Provide detailed exam study guidance and revision notes."},
                     {"role": "user", "content": f"Topic: {req.topic}, Mode: {req.mode}, Language: {req.lang}"}
