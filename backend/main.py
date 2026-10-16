@@ -421,7 +421,7 @@ UNIVERSITY DATA RETRIEVED FROM BACKEND JSON:
         messages.append({"role": "user", "content": query})
 
         response = groq.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=messages,
             temperature=0.1,
             max_tokens=800,
@@ -459,7 +459,7 @@ def study_assist(req: StudyAssistRequest):
     if groq:
         try:
             resp = groq.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 messages=[
                     {"role": "system", "content": "You are a university academic professor. Provide detailed exam study guidance and revision notes."},
                     {"role": "user", "content": f"Topic: {req.topic}, Mode: {req.mode}, Language: {req.lang}"}
