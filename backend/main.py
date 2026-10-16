@@ -186,8 +186,8 @@ def test_groq(req: TestGroqRequest):
 def _normalise_text(value: str) -> str:
     """Normalise text for simple keyword matching."""
     import re
-    return " ".join(re.findall(r"[a-z0-9]+", value.lower()))
-
+    value = value.lower()
+    return " ".join(re.findall(r"[^\W_]+", value, flags=re.UNICODE))
 
 def _collect_records(data: Any, path: str = "") -> List[Dict[str, Any]]:
     """
