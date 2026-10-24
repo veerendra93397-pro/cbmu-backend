@@ -633,59 +633,6 @@ app.post('/api/ai/test-groq', async (req, res) => {
     });
   }
 });
-// Verified directory lookup for "who is the chairperson / head of X?" questions.
-// Answers come straight from the backend departments data so the AI can never
-// invent a name. Returns null when the question is not about a department head.
-function findDepartmentAnswer(query: string, lang: string): string | null {
-  const q = query.toLowerCase().trim();
-
-  // Recognize chairperson/head questions, including common typos.
-  const asksForHead =
-    /\b(chair\s*person|chairman|chairwoman|chirperson|head|hod|who\s+leads|in[- ]charge)\b/i.test(q) ||
-    q.includes('ಅಧ್ಯಕ್ಷರು') ||
-    q.includes('ವಿಭಾಗದ ಮುಖ್ಯಸ್ಥ') ||
-    q.includes('ಮುಖ್ಯಸ್ಥರು');
-
-  if (!asksForHead) return null;
-
-  const departments = Object.values(backendDepartments) as any[];
-
-  // Pick the entry whose key/name/alias is the LONGEST whole-word match, so
-  // "computer science" wins over a short alias such as "cs" or "science".
-  let best: { dept: any; len: number } | null = null;
-  for (const d of departments) {
-    const terms = [d.key, d.name, ...(Array.isArray(d.aliases) ? d.aliases : [])]
-      .filter(Boolean)
-      .map((value: unknown) => String(value).toLowerCase().trim())
-      .filter((term: string) => term.length > 0);
-
-    for (const term of terms) {
-      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const matches = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(q);
-      if (matches && (!best || term.length > best.len)) {
-        best = { dept: d, len: term.length };
-      }
-    }
-  }
-
-  if (!best) return null;
-  const dept = best.dept;
-  const person = dept.chairperson || dept.person || dept.hod;
-
-  if (!person) {
-    return lang === 'kn'
-      ? `${dept.name} ವಿಭಾಗದ ಅಧ್ಯಕ್ಷರು/ಮುಖ್ಯಸ್ಥರ ಹೆಸರು ಪ್ರಸ್ತುತ directoryಯಲ್ಲಿ ದಾಖಲಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಅಧಿಕೃತ ಮಾಹಿತಿಯಲ್ಲಿ ಪರಿಶೀಲಿಸಿ.`
-      : `The chairperson/head of ${dept.name} is not listed in the current directory. Please verify with the university.`;
-  }
-
-  const location =
-    dept.lat != null && dept.lng != null ? `\n\n__LOCATION__:${dept.lat},${dept.lng}` : '';
-
-  return lang === 'kn'
-    ? `### ${dept.name}\n\n👤 **ವಿಭಾಗದ ಅಧ್ಯಕ್ಷರು/ಮುಖ್ಯಸ್ಥರು:** ${person}${dept.contact ? `\n\n📞 **ಸಂಪರ್ಕ:** ${dept.contact}` : ''}${location}`
-    : `### ${dept.name}\n\n👤 **Chairperson/Head:** ${person}${dept.contact ? `\n\n📞 **Contact:** ${dept.contact}` : ''}${location}`;
-}
-
 // Rich campus knowledge responder for chat fallback
 function generateCampusFallbackAnswer(query: string, lang: string): string {
   const isKn = lang === 'kn';
@@ -1013,13 +960,6 @@ app.post('/api/ai/chat', async (req, res) => {
 
     if (!message || typeof message !== 'string') {
       res.status(400).json({ error: 'Message is required' });
-      return;
-    }
-
-    // Verified directory answers (department heads) are returned before the AI is called.
-    const directoryAnswer = findDepartmentAnswer(message, lang);
-    if (directoryAnswer) {
-      res.json({ answer: directoryAnswer, source: 'campus_directory', model: 'verified-directory' });
       return;
     }
 
