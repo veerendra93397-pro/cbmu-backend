@@ -90,7 +90,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           if (groqTest.success) {
             setTestResult({
               success: true,
-              message: `✅ Groq Server Connected & Verified! LLaMA 3.3 70B is active. (Port: ${data.port || 3000})`,
+              message: `✅ Groq Server Connected & Verified! GPT-OSS 120B is active. (Port: ${data.port || 3000})`,
             });
           } else {
             setTestResult({
