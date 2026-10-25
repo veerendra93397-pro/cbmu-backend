@@ -175,7 +175,7 @@ def test_groq(req: TestGroqRequest):
         from groq import Groq
         client = Groq(api_key=key.strip())
         res = client.chat.completions.create(
-            model=""openai/gpt-oss-120b"",
+            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": "Say: Groq server connected successfully in 1 sentence."}],
             max_tokens=30
         )
