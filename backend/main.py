@@ -1,4 +1,3 @@
-
 import os
 import json
 import logging
@@ -164,7 +163,7 @@ def provider_status():
         "activeProvider": "groq" if groq_ok else "academic_engine",
         "groqConfigured": groq_ok,
         "geminiConfigured": bool(os.getenv("GEMINI_API_KEY")),
-        "modelName": "Groq (LLaMA 3.3 70B Versatile)" if groq_ok else "CBMU Campus Engine"
+        "modelName": "openai/gpt-oss-120b" if groq_ok else "CBMU Campus Engine"
     }
 
 @app.post("/api/ai/test-groq")
@@ -176,7 +175,7 @@ def test_groq(req: TestGroqRequest):
         from groq import Groq
         client = Groq(api_key=key.strip())
         res = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=""openai/gpt-oss-120b"",
             messages=[{"role": "user", "content": "Say: Groq server connected successfully in 1 sentence."}],
             max_tokens=30
         )
@@ -438,7 +437,7 @@ UNIVERSITY DATA RETRIEVED FROM BACKEND JSON:
         return {
             "answer": answer.strip(),
             "source": "groq_with_dataset",
-            "model": "llama-3.3-70b-versatile"
+            "model": ""openai/gpt-oss-120b""
         }
 
     except Exception:
