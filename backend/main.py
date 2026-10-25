@@ -437,7 +437,7 @@ UNIVERSITY DATA RETRIEVED FROM BACKEND JSON:
         return {
             "answer": answer.strip(),
             "source": "groq_with_dataset",
-            "model": ""openai/gpt-oss-120b""
+            "model": "openai/gpt-oss-120b"
         }
 
     except Exception:
